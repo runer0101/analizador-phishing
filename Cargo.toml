@@ -9,6 +9,8 @@ rust-version = "1.74"
 [lib]
 name = "phishing_analyzer"
 path = "src/lib.rs"
+# `cdylib` is what the browser demo compiles to WebAssembly; `rlib` keeps the normal build.
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "phishing-analyzer"

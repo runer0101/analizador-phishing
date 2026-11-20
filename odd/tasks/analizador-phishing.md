@@ -27,6 +27,9 @@ La segunda mitad (el honeypot casero) vive en el repositorio hermano `honeypot-c
 | T3 | S4, S7 | CLI (tabla, `--json`, `--file`, `--demo`, `--no-color`) + 8 pruebas de CLI | `feat(analyzer): CLI with colored verdicts` |
 | T4 | S8 | Guion, diapositivas, guía de ensayo, script de demo y README | `docs: presentation script, slides and rehearsal guide` |
 | T5 | S1–S9 | Verificación final: `cargo test`, `clippy`, `fmt`, ensayo sin internet | `chore: final verification` |
+| T6 | S10 | Frontera WebAssembly (`src/wasm.rs`), sitio estático y workflow de Pages | `feat(web): browser demo compiled to WebAssembly` |
+| T7 | S11 | Workflow de release: binarios por sistema y sumas SHA-256 | `ci: release workflow with per-platform binaries` |
+| T8 | S1–S11 | Publicación del repositorio, activación de Pages y primer tag | `chore: publish repository and first release` |
 
 ## Contrato técnico
 
@@ -63,3 +66,16 @@ errores de uso. Color únicamente en terminal y nunca con `NO_COLOR` definido.
   que cada mitad se pueda revisar, publicar y defender por separado.
 - **L7** (2026-11-20, Kairos) — Verificado que el crate **no contiene ninguna referencia de
   red** (`grep` de `std::net`, `TcpStream`, `TcpListener`, `reqwest`: cero resultados).
+- **L8** (2026-11-20, señor) — Decide publicar en GitHub **público**, con **Releases** (el
+  programa descargable) y **demo en Pages** (la versión web).
+- **L9** (2026-11-20, Kairos) — La lib compila a `wasm32-unknown-unknown` **sin añadir
+  ninguna dependencia**: el motor de reglas es lógica pura de texto. La frontera con
+  JavaScript son cuatro funciones: `wasm_alloc`, `wasm_analyze`, `wasm_last_len` y
+  `wasm_dealloc`.
+- **L10** (2026-11-20, Kairos) — Dos defectos detectados en la verificación con navegador
+  real, antes de publicar: el bloque de resultado se quedaba oculto (atributo `hidden` sin
+  quitar) y faltaba el favicon (un 404 en cada carga). Los dos corregidos.
+- **L11** (2026-11-20, Kairos) — Los workflows usan **solo acciones de GitHub**
+  (`checkout`, `cache`, `configure-pages`, `upload-pages-artifact`, `deploy-pages`), sin
+  acciones de terceros: en un repositorio de ciberseguridad conviene que la cadena de
+  suministro sea corta y auditada.

@@ -489,6 +489,10 @@ pub const DEMO_CASES: &[DemoCase] = &[
     },
 ];
 
+/// The browser demo compiles this library to WebAssembly; the boundary lives in `wasm.rs`.
+#[cfg(target_arch = "wasm32")]
+mod wasm;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,0 +1,239 @@
+:root {
+  --tinta: #16181d;
+  --tinta-suave: #5b6270;
+  --linea: #e3e6ec;
+  --fondo: #f6f7f9;
+  --papel: #ffffff;
+  --alto: #c0392b;
+  --medio: #b26a00;
+  --bajo: #1e7a45;
+  --acento: #1f4fd8;
+  --radio: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--tinta);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.contenedor {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.cabecera {
+  background: var(--tinta);
+  color: #f2f4f8;
+  padding: 44px 0 38px;
+}
+
+.antetitulo {
+  margin: 0 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9aa3b4;
+}
+
+h1 {
+  margin: 0 0 10px;
+  font-size: clamp(28px, 5vw, 40px);
+  letter-spacing: -0.02em;
+}
+
+.lema {
+  margin: 0;
+  max-width: 60ch;
+  color: #cbd2de;
+  font-size: 17px;
+}
+
+main { padding: 28px 0 12px; }
+
+.panel {
+  background: var(--papel);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.panel h2 {
+  margin: 0 0 16px;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.etiqueta {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tinta-suave);
+  margin-bottom: 6px;
+}
+
+.fila {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+input[type="text"] {
+  flex: 1 1 340px;
+  min-width: 0;
+  padding: 12px 14px;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 15px;
+  color: var(--tinta);
+  background: var(--papel);
+  border: 1px solid #cfd4dd;
+  border-radius: 8px;
+}
+
+input[type="text"]:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+  border-color: var(--acento);
+}
+
+button {
+  padding: 12px 22px;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--acento);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:hover { background: #1a43bb; }
+button:active { transform: translateY(1px); }
+button:focus-visible { outline: 2px solid var(--tinta); outline-offset: 2px; }
+
+.nota {
+  margin: 12px 0 0;
+  font-size: 13.5px;
+  color: var(--tinta-suave);
+}
+
+.estado {
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--tinta-suave);
+}
+
+.estado.error { color: var(--alto); }
+
+.resultado { margin-top: 18px; }
+
+.veredicto {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--linea);
+  background: #fbfbfc;
+}
+
+.insignia {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.insignia.alto { background: var(--alto); }
+.insignia.medio { background: var(--medio); }
+.insignia.bajo { background: var(--bajo); }
+
+.puntaje { font-weight: 600; }
+.dominio { color: var(--tinta-suave); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+
+.tabla-envoltorio { overflow-x: clip; }
+
+table.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+
+table.tabla th,
+table.tabla td {
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--linea);
+  vertical-align: top;
+}
+
+table.tabla th {
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tinta-suave);
+}
+
+table.tabla td.num,
+table.tabla th.num { text-align: right; width: 72px; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  background: #eef0f4;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.señales { margin-top: 14px; }
+.señales th { background: transparent; }
+
+.casos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.casos button {
+  width: 100%;
+  text-align: left;
+  background: var(--papel);
+  color: var(--tinta);
+  border: 1px solid #cfd4dd;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 12px;
+}
+
+.casos button:hover { background: #f2f5fb; border-color: var(--acento); }
+
+.pie {
+  border-top: 1px solid var(--linea);
+  background: var(--papel);
+  padding: 22px 0 34px;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.pie p { margin: 0 0 6px; }
+.pie a { color: var(--acento); }
+
+@media (max-width: 560px) {
+  .panel { padding: 18px; }
+  .fila { flex-direction: column; }
+  button { width: 100%; }
+}

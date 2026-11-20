@@ -12,6 +12,30 @@ La otra mitad de la actividad es el repositorio hermano
 [`honeypot-casero`](../honeypot-casero): una trampa que registra lo que hace un atacante
 cuando entra.
 
+## Demo en el navegador
+
+El motor de reglas está compilado a **WebAssembly**: la página analiza el enlace en el
+equipo del visitante y **no lo envía a ningún servidor**. No hace falta internet en la
+página una vez cargada.
+
+**https://runer0101.github.io/analizador-phishing/**
+
+![Captura de la demo en el navegador](docs/captura-demo.png)
+
+## Descargas
+
+Binarios listos para usar, en la sección *Releases* del repositorio:
+
+| Sistema | Archivo |
+| --- | --- |
+| Linux x86-64 | `phishing-analyzer-linux-x86_64` |
+| Linux ARM64 | `phishing-analyzer-linux-aarch64` |
+| macOS Intel | `phishing-analyzer-macos-x86_64` |
+| macOS Apple Silicon | `phishing-analyzer-macos-aarch64` |
+| Windows x86-64 | `phishing-analyzer-windows-x86_64.exe` |
+
+Cada descarga trae su suma SHA-256 en `phishing-analyzer-SHA256SUMS.txt`.
+
 ## Requisitos
 
 Rust 1.74 o superior. Nada más: sin Python, sin Docker, sin red.
@@ -97,13 +121,20 @@ La conclusión correcta no es «esto es phishing», sino **«esto merece revisi�
 analizador-phishing/
 ├── src/
 │   ├── lib.rs        # motor de reglas, análisis de la URL y veredicto
-│   └── main.rs       # CLI: tabla, JSON, archivos y modo demostración
+│   ├── main.rs       # CLI: tabla, JSON, archivos y modo demostración
+│   └── wasm.rs       # frontera WebAssembly para la demo del navegador
 ├── tests/cli.rs      # pruebas de la CLI: códigos de salida y formato
+├── site/             # la demo en el navegador (HTML, CSS, JS)
+├── .github/workflows/
+│   ├── ci.yml        # formato, lints, pruebas y compilación del wasm
+│   ├── pages.yml     # publica la demo en GitHub Pages
+│   └── release.yml   # binarios de Linux, macOS y Windows en cada tag
 ├── docs/
 │   ├── PRESENTACION.md   # el guion completo de los 12 minutos
 │   ├── GUION.md          # la parte del analizador
 │   ├── DIAPOSITIVAS.md   # diapositivas 1 a 5
-│   └── ENSAYO.md         # ensayo sin internet y plan B
+│   ├── ENSAYO.md         # ensayo sin internet y plan B
+│   └── captura-demo.png  # captura real de la demo en el navegador
 ├── scripts/demo.sh   # la demostración del analizador en un comando
 └── odd/tasks/        # especificación de la actividad
 ```
@@ -114,6 +145,7 @@ analizador-phishing/
 cargo test                                              # 33 pruebas
 cargo clippy --all-targets -- -D warnings
 cargo fmt -- --check
+cargo build --lib --release --target wasm32-unknown-unknown   # el motor de la web
 ```
 
 ## Aviso legal

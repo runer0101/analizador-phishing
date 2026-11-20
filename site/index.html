@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analizador de phishing — análisis estático de enlaces</title>
+<meta name="description" content="Analiza un enlace como texto y devuelve un veredicto de riesgo, sin visitarlo y sin enviarlo a ningún servidor.">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316181d'/%3E%3Cpath d='M16 7l8 3v6c0 5-3.4 8.2-8 9.5C11.4 24.2 8 21 8 16v-6z' fill='none' stroke='%23c0392b' stroke-width='2'/%3E%3Cpath d='M12 16l3 3 5.5-6' fill='none' stroke='%23f2f4f8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="cabecera">
+  <div class="contenedor">
+    <p class="antetitulo">Actividad de ciberseguridad · 5 de diciembre</p>
+    <h1>Analizador de phishing</h1>
+    <p class="lema">Lee el enlace <strong>como texto</strong> y te dice qué señales de fraude tiene.
+      No lo visita, no lo envía a ningún servidor y no necesita internet.</p>
+  </div>
+</header>
+
+<main class="contenedor">
+
+  <section class="panel" aria-labelledby="titulo-analizador">
+    <h2 id="titulo-analizador">Analiza un enlace</h2>
+    <form id="formulario" class="formulario">
+      <label class="etiqueta" for="enlace">Enlace completo</label>
+      <div class="fila">
+        <input id="enlace" name="enlace" type="text" inputmode="url" spellcheck="false"
+               autocomplete="off" autocapitalize="off"
+               placeholder="http://paypa1.com/login/verify" required>
+        <button type="submit" id="boton">Analizar</button>
+      </div>
+      <p class="nota">El análisis ocurre en tu navegador, con WebAssembly. El enlace no sale de tu equipo.</p>
+    </form>
+
+    <div id="estado" class="estado" role="status" aria-live="polite"></div>
+    <div id="resultado" class="resultado" hidden></div>
+  </section>
+
+  <section class="panel" aria-labelledby="titulo-casos">
+    <h2 id="titulo-casos">Casos de la demostración</h2>
+    <ul class="casos" id="casos"></ul>
+  </section>
+
+  <section class="panel" aria-labelledby="titulo-reglas">
+    <h2 id="titulo-reglas">Las once señales</h2>
+    <div class="tabla-envoltorio">
+      <table class="tabla">
+        <thead>
+          <tr><th>Señal</th><th class="num">Puntos</th><th>Detecta</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>no_https</code></td><td class="num">1</td><td>El enlace no usa HTTPS</td></tr>
+          <tr><td><code>ip_host</code></td><td class="num">2</td><td>Una IP en vez de un dominio con nombre</td></tr>
+          <tr><td><code>userinfo</code></td><td class="num">2</td><td>El «@» que esconde el destino real</td></tr>
+          <tr><td><code>deep_subdomain</code></td><td class="num">1</td><td>Cuatro o más etiquetas en el dominio</td></tr>
+          <tr><td><code>punycode</code></td><td class="num">2</td><td>Letras camufladas (<code>xn--</code>)</td></tr>
+          <tr><td><code>shortener</code></td><td class="num">2</td><td>Acortadores que esconden el destino</td></tr>
+          <tr><td><code>suspicious_tld</code></td><td class="num">1</td><td>Terminaciones baratas (<code>.xyz</code>, <code>.top</code>…)</td></tr>
+          <tr><td><code>hyphen_chain</code></td><td class="num">1</td><td>Dominios con tres o más guiones</td></tr>
+          <tr><td><code>hook_words</code></td><td class="num">1</td><td>Palabras de gancho: <code>login</code>, <code>clave</code>, <code>verificar</code>…</td></tr>
+          <tr><td><code>brand_impersonation</code></td><td class="num">3</td><td>Usa el nombre de una marca y no es el sitio oficial</td></tr>
+          <tr><td><code>typosquat</code></td><td class="num">3</td><td>Imita una marca cambiando una letra (<code>paypa1.com</code>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="nota"><strong>5+ puntos</strong> → ALTO · <strong>3-4</strong> → MEDIO · <strong>0-2</strong> → BAJO.
+      Un veredicto no es una sentencia: es una señal de que el enlace merece revisión humana.</p>
+  </section>
+
+</main>
+
+<footer class="pie">
+  <div class="contenedor">
+    <p>Herramienta propia escrita en Rust, sin dependencias externas. Código, historial y descargas en el
+      <a href="https://github.com/runer0101/analizador-phishing">repositorio</a>.</p>
+    <p class="nota">Material para un laboratorio controlado y autorizado. El analizador no abre ninguna conexión:
+      solo analiza el texto del enlace que tú le entregas.</p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
