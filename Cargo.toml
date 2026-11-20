@@ -1,0 +1,15 @@
+[package]
+name = "phishing-analyzer"
+description = "Static phishing link analyzer: reads a URL as text and returns a risk verdict without visiting it"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.74"
+
+[lib]
+name = "phishing_analyzer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "phishing-analyzer"
+path = "src/main.rs"
