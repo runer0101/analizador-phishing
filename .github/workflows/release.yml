@@ -85,4 +85,4 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" dist/* \
             --title "Analizador de phishing ${GITHUB_REF_NAME}" \
             --notes "Binarios del analizador de phishing: análisis estático de enlaces, sin visitarlos. \
-          Verificá las descargas con el archivo \`phishing-analyzer-SHA256SUMS.txt\`."
+          Verifique las descargas con el archivo \`phishing-analyzer-SHA256SUMS.txt\`."
