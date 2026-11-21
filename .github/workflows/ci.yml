@@ -44,3 +44,26 @@ jobs:
 
       - name: El módulo WebAssembly no pierde memoria
         run: node scripts/estres-wasm.mjs
+
+  cobertura:
+    # Job aparte: la cobertura informa, pero no bloquea la CI.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Preparar Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup component add llvm-tools-preview
+
+      - name: Instalar cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: Medir la cobertura
+        run: cargo llvm-cov --workspace --lcov --output-path cobertura.lcov
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: cobertura
+          path: cobertura.lcov
