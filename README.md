@@ -17,7 +17,7 @@ DNS, no abre conexiones, no sale a internet.
 > **Demo en vivo:** <https://runer0101.github.io/analizador-phishing/>
 > El análisis ocurre en el navegador del visitante: el enlace no sale de su equipo.
 >
-> **Descargas:** [release v0.3.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.3.0)
+> **Descargas:** [release v0.4.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.4.0)
 > con binarios para Linux, macOS y Windows, y sus sumas SHA-256.
 
 El proyecto hermano es [`honeypot-casero`](../honeypot-casero): una **trampa de baja
@@ -37,7 +37,7 @@ cargo build --release
 ```
 
 El binario queda en `target/release/phishing-analyzer`. También hay versiones ya compiladas
-en la [release v0.3.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.3.0):
+en la [release v0.4.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.4.0):
 
 | Sistema | Archivo |
 | --- | --- |
