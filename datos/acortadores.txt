@@ -1,0 +1,13 @@
+# Acortadores de enlaces.
+# Ocultan el destino real detrás de una dirección corta: por eso suman dos puntos.
+# Formato: un dominio por línea. Las líneas que empiezan con «#» son comentarios.
+bit.ly
+tinyurl.com
+t.co
+is.gd
+cutt.ly
+rb.gy
+shorturl.at
+ow.ly
+buff.ly
+rebrand.ly

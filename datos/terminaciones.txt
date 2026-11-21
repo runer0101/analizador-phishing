@@ -1,0 +1,14 @@
+# Terminaciones poco confiables.
+# Son baratas de comprar y por eso aparecen en muchos enlaces de estafa.
+# Formato: una terminación por línea (con el punto). Las líneas que empiezan con «#» son
+# comentarios.
+.xyz
+.top
+.tk
+.click
+.zip
+.icu
+.buzz
+.link
+.work
+.rest

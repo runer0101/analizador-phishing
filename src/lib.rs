@@ -17,6 +17,10 @@
 
 use std::fmt;
 
+pub mod config;
+
+use config::{acortadores, marcas, palabras_gancho, terminaciones};
+
 /// La demostración del navegador compila esta biblioteca a WebAssembly; toda la
 /// frontera con JavaScript está en `wasm.rs`.
 #[cfg(target_arch = "wasm32")]
@@ -152,76 +156,6 @@ pub fn cadena_json(valor: &str) -> String {
     salida.push('"');
     salida
 }
-
-/// Marcas conocidas y su sitio web oficial.
-pub const MARCAS: &[(&str, &str)] = &[
-    ("paypal", "paypal.com"),
-    ("google", "google.com"),
-    ("facebook", "facebook.com"),
-    ("whatsapp", "whatsapp.com"),
-    ("microsoft", "microsoft.com"),
-    ("amazon", "amazon.com"),
-    ("apple", "apple.com"),
-    // Bancos de Bolivia
-    ("bcp", "bcp.com.bo"),
-    ("bnb", "bnb.com.bo"),
-    ("bancounion", "bancounion.com.bo"),
-    ("mercantilsantacruz", "mercantilsantacruz.com.bo"),
-    ("bancoestado", "bancoestado.com.bo"),
-];
-
-/// Servicios que acortan el enlace y esconden el destino real.
-pub const ACORTADORES: &[&str] = &[
-    "bit.ly",
-    "tinyurl.com",
-    "t.co",
-    "is.gd",
-    "cutt.ly",
-    "rb.gy",
-    "shorturl.at",
-    "ow.ly",
-    "buff.ly",
-    "rebrand.ly",
-];
-
-/// Terminaciones baratas, muy usadas por los estafadores.
-pub const TERMINACIONES_SOSPECHOSAS: &[&str] = &[
-    ".xyz", ".top", ".tk", ".click", ".zip", ".icu", ".buzz", ".link", ".work", ".rest",
-];
-
-/// Palabras de gancho: sirven para que la persona haga clic sin pensar.
-pub const PALABRAS_GANCHO: &[&str] = &[
-    "login",
-    "signin",
-    "sign-in",
-    "verify",
-    "verificar",
-    "verification",
-    "secure",
-    "seguridad",
-    "update",
-    "actualizar",
-    "confirm",
-    "confirmar",
-    "banco",
-    "bancario",
-    "clave",
-    "password",
-    "contrasena",
-    "contraseña",
-    "cuenta",
-    "acceso",
-    "recovery",
-    "recuperar",
-    "bloqueo",
-    "suspendido",
-    "suspended",
-    "unusual",
-    "urgente",
-    "inmediato",
-    "premio",
-    "ganador",
-];
 
 /// El enlace, desarmado en partes.
 ///
@@ -455,11 +389,13 @@ pub fn analizar(entrada: &str) -> Informe {
     }
 
     // 10 y 11. Marcas imitadas y typosquatting.
-    for (nombre, oficial) in MARCAS {
-        if dominio_minusculas == *oficial || dominio_minusculas.ends_with(&format!(".{oficial}")) {
+    for (nombre, oficial) in marcas() {
+        if dominio_minusculas == oficial.as_str()
+            || dominio_minusculas.ends_with(&format!(".{oficial}"))
+        {
             break; // Es el sitio oficial: no se evalúa ninguna marca.
         }
-        if usa_nombre_de_marca(&dominio_minusculas, nombre) {
+        if usa_nombre_de_marca(&dominio_minusculas, nombre.as_str()) {
             senales.push(Senal {
                 codigo: "marca_falsa",
                 puntos: 3,
@@ -469,7 +405,7 @@ pub fn analizar(entrada: &str) -> Informe {
             });
             break;
         }
-        if imita_una_marca(&dominio_minusculas, nombre) {
+        if imita_una_marca(&dominio_minusculas, nombre.as_str()) {
             senales.push(Senal {
                 codigo: "typosquatting",
                 puntos: 3,
@@ -543,14 +479,14 @@ pub fn cantidad_guiones(dominio: &str) -> usize {
 
 /// ¿El dominio es (o termina siendo) un acortador conocido?
 pub fn es_acortador(dominio: &str) -> bool {
-    ACORTADORES.contains(&dominio)
+    acortadores().iter().any(|acortador| acortador == dominio)
 }
 
 /// ¿El dominio termina en una terminación poco confiable?
 pub fn tiene_terminacion_sospechosa(dominio: &str) -> bool {
-    TERMINACIONES_SOSPECHOSAS
+    terminaciones()
         .iter()
-        .any(|terminacion| dominio.ends_with(terminacion))
+        .any(|terminacion| dominio.ends_with(terminacion.as_str()))
 }
 
 /// Explicación de cada señal en palabras llanas: qué significa y qué hacer.
@@ -624,10 +560,10 @@ pub fn explicacion(codigo: &str) -> Option<(&'static str, &'static str)> {
 
 /// Primera palabra de gancho encontrada (el texto llega en minúsculas).
 pub fn primera_palabra_gancho(texto: &str) -> Option<&'static str> {
-    PALABRAS_GANCHO
+    palabras_gancho()
         .iter()
-        .find(|palabra| texto.contains(*palabra))
-        .copied()
+        .find(|palabra| texto.contains(palabra.as_str()))
+        .map(|palabra| palabra.as_str())
 }
 
 /// La «clave» de una etiqueta: sin guiones y en minúsculas.

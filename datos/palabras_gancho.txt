@@ -1,0 +1,35 @@
+# Palabras de gancho.
+# Son las palabras que se usan para que una persona actúe por impulso: "inicia sesión",
+# "verifica tu cuenta", "urgente". Si una de ellas aparece en el enlace, la trampa suma
+# un punto.
+# Formato: una palabra por línea. Las líneas que empiezan con «#» son comentarios.
+login
+signin
+sign-in
+verify
+verificar
+verification
+secure
+seguridad
+update
+actualizar
+confirm
+confirmar
+banco
+bancario
+clave
+password
+contrasena
+contraseña
+cuenta
+acceso
+recovery
+recuperar
+bloqueo
+suspendido
+suspended
+unusual
+urgente
+inmediato
+premio
+ganador

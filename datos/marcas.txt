@@ -1,0 +1,16 @@
+# Marcas vigiladas.
+# Si el dominio usa el nombre de una de estas marcas y no es el sitio oficial, el
+# analizador suma tres puntos.
+# Formato: marca | sitio oficial. Las líneas que empiezan con «#» son comentarios.
+paypal | paypal.com
+google | google.com
+facebook | facebook.com
+whatsapp | whatsapp.com
+microsoft | microsoft.com
+amazon | amazon.com
+apple | apple.com
+bcp | bcp.com.bo
+bnb | bnb.com.bo
+bancounion | bancounion.com.bo
+mercantilsantacruz | mercantilsantacruz.com.bo
+bancoestado | bancoestado.com.bo

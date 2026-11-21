@@ -180,7 +180,9 @@ analizador-phishing/
 ├── src/
 │   ├── lib.rs        # motor de reglas, análisis del enlace y veredicto
 │   ├── main.rs       # CLI: tabla, JSON, archivos y modo demostración
+│   ├── config.rs     # carga de las listas (una sola vez, con OnceLock)
 │   └── wasm.rs       # frontera WebAssembly para la demo del navegador
+├── datos/            # las cuatro listas, en texto plano (embebidas con include_str!)
 ├── tests/cli.rs      # pruebas de la CLI: códigos de salida y formato
 ├── site/             # la demo en el navegador (HTML, CSS, JS)
 ├── .github/workflows/
@@ -192,12 +194,30 @@ analizador-phishing/
 │   ├── GUION.md          # la parte del analizador
 │   ├── DIAPOSITIVAS.md   # diapositivas 1 a 5
 │   ├── ENSAYO.md         # ensayo sin internet y plan B
+│   ├── CHECKLIST-DIA-5.md # los diez puntos para el día del evento
 │   └── captura-demo.png  # captura real de la demo en el navegador
 ├── scripts/
 │   ├── demo.sh          # la demostración del analizador en un comando
 │   └── estres-wasm.mjs  # test de fuga de memoria del módulo WebAssembly
 └── odd/tasks/        # especificación de la actividad
 ```
+
+### Las listas en texto plano
+
+Las cuatro listas que se pueden cambiar sin tocar el código están en `datos/`, en texto
+plano, y viajan **embebidas dentro del binario** (`include_str!`): no hace falta ningún
+archivo suelto al ejecutar el programa.
+
+| Archivo | Contenido | Formato |
+| --- | --- | --- |
+| `datos/palabras_gancho.txt` | 30 palabras de gancho | una por línea |
+| `datos/acortadores.txt` | 10 acortadores | uno por línea |
+| `datos/terminaciones.txt` | 10 terminaciones poco confiables | una por línea |
+| `datos/marcas.txt` | 12 marcas con su sitio oficial | `marca \| sitio` |
+
+En todas: las líneas que empiezan con `#` son comentarios. Cada lista se lee **una sola
+vez** (un `OnceLock`), así que después de la primera llamada solo hay una lectura de
+puntero.
 
 ## Verificación
 
