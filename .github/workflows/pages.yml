@@ -1,14 +1,12 @@
 name: Pages
 
 on:
-  push:
+  # La web se publica solo cuando la CI de ese commit terminó en verde: así la
+  # demo que se muestra nunca es una versión que no pasó las pruebas.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
-    paths:
-      - "src/**"
-      - "site/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -22,9 +20,13 @@ concurrency:
 
 jobs:
   construir:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Se publica exactamente el commit que pasó las pruebas.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Preparar Rust
         run: |

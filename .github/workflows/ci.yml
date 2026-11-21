@@ -41,3 +41,6 @@ jobs:
 
       - name: El motor de WebAssembly compila
         run: cargo build --lib --release --target wasm32-unknown-unknown
+
+      - name: El módulo WebAssembly no pierde memoria
+        run: node scripts/estres-wasm.mjs
