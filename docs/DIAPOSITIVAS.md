@@ -28,6 +28,7 @@ repositorio `honeypot-casero`.
 - Lee el enlace **como texto**: no lo visita, no pide DNS, no sale a internet
 - Once reglas, cada una con un puntaje
 - 5+ puntos → **ALTO** · 3-4 → **MEDIO** · 0-2 → **BAJO**
+- **Demo en vivo:** https://runer0101.github.io/analizador-phishing/
 
 ```
 🔴 ALTO — 5 pts, 3 señales

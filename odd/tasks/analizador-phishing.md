@@ -79,3 +79,13 @@ errores de uso. Color únicamente en terminal y nunca con `NO_COLOR` definido.
   (`checkout`, `cache`, `configure-pages`, `upload-pages-artifact`, `deploy-pages`), sin
   acciones de terceros: en un repositorio de ciberseguridad conviene que la cadena de
   suministro sea corta y auditada.
+- **L12** (2026-11-21, Kairos) — El enlace de la demo queda en el **About** del repositorio
+  (página del proyecto) y en la descripción, que ahora incluye la URL de la demo; se
+  añadieron temas (`rust`, `security`, `phishing`, `wasm`, `static-analysis`,
+  `cybersecurity`) para que el repositorio se encuentre por búsqueda.
+- **L13** (2026-11-21, Kairos) — El README abre con la demo en vivo y la release, con
+  distintivos de CI y licencia. Se añadió el archivo **LICENSE** (MIT), que el `Cargo.toml`
+  declaraba pero no existía.
+- **L14** (2026-11-21, Kairos) — La URL de la demo también aparece en las diapositivas, en
+  el guion, en la guía de ensayo y en el pie de la página, porque es el punto fuerte para
+  la exposición: el análisis ocurre en el navegador del visitante.

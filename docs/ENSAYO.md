@@ -12,6 +12,11 @@ internet** y con un video de respaldo por si la sala falla.
 | Video de respaldo (2 min) | Si la sala falla | No |
 | Diapositivas en PDF | Por si el equipo del aula no abre Markdown | No |
 
+**Si hay internet en el aula**, hay un extra: la misma herramienta está publicada en
+<https://runer0101.github.io/analizador-phishing/>. Se puede abrir desde el móvil o el
+proyector y enseñar que el análisis ocurre en el navegador del visitante. Es un
+complemento: la demostración local **no** necesita internet.
+
 El binario se compila **una vez antes** y se lleva en un pendrive:
 
 ```bash

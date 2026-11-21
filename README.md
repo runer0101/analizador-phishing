@@ -1,5 +1,9 @@
 # Analizador de phishing
 
+[![CI](https://github.com/runer0101/analizador-phishing/actions/workflows/ci.yml/badge.svg)](https://github.com/runer0101/analizador-phishing/actions/workflows/ci.yml)
+[![Demo en vivo](https://img.shields.io/badge/demo%20en%20vivo-1f4fd8?style=flat-square)](https://runer0101.github.io/analizador-phishing/)
+[![Licencia](https://img.shields.io/badge/licencia-MIT-1e7a45?style=flat-square)](LICENSE)
+
 Herramienta propia de la actividad de ciberseguridad del 5 de diciembre: **lee un enlace
 como texto** y devuelve un veredicto de riesgo con el motivo de cada señal. **Nunca visita
 la URL**: no pide DNS, no abre conexiones, no sale a internet.
@@ -7,6 +11,12 @@ la URL**: no pide DNS, no abre conexiones, no sale a internet.
 - Rust, **cero dependencias externas** (solo la biblioteca estándar)
 - Once reglas con puntaje, veredicto en tres niveles
 - Salida para terminal (con color) y salida JSON para máquinas
+
+> **Demo en vivo:** <https://runer0101.github.io/analizador-phishing/>
+> El análisis ocurre en el navegador del visitante, con WebAssembly: el enlace no sale de su equipo.
+>
+> **Descargas:** [release v0.1.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.1.0)
+> con binarios para Linux, macOS y Windows, y sus sumas SHA-256.
 
 La otra mitad de la actividad es el repositorio hermano
 [`honeypot-casero`](../honeypot-casero): una trampa que registra lo que hace un atacante
@@ -24,7 +34,7 @@ página una vez cargada.
 
 ## Descargas
 
-Binarios listos para usar, en la sección *Releases* del repositorio:
+Binarios listos para usar en la [release v0.1.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.1.0):
 
 | Sistema | Archivo |
 | --- | --- |
