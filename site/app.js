@@ -9,6 +9,7 @@ const CASOS = [
   { url: "http://paypal.secure-verify-login.com/account", nota: "imita a PayPal" },
   { url: "http://192.168.56.101/wp-login.php", nota: "login desde una IP cruda" },
   { url: "https://www.bancounion.com.bo/verificacion-clave", nota: "sitio real (falso positivo)" },
+  { url: "https://www.bancounion.com.bo/", nota: "sitio real del banco" },
   { url: "https://www.google.com", nota: "sitio legítimo" },
 ];
 

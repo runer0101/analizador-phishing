@@ -294,8 +294,16 @@ pub fn analizar(entrada: &str) -> Informe {
     let url = UrlAnalizada::parsear(entrada);
     let dominio = url.dominio.clone();
     let dominio_minusculas = dominio.to_ascii_lowercase();
-    let texto_minusculas =
-        format!("{} {} {}", url.dominio, url.ruta, url.consulta).to_ascii_lowercase();
+    // El texto que se busca incluye la parte antes del «@» (el usuario): ahí también
+    // se pueden esconder palabras de gancho.
+    let texto_buscado = format!(
+        "{} {} {} {}",
+        url.usuario.as_deref().unwrap_or(""),
+        url.dominio,
+        url.ruta,
+        url.consulta
+    );
+    let texto_minusculas = texto_buscado.to_ascii_lowercase();
     let es_ip = es_direccion_ip(&dominio);
 
     let mut senales: Vec<Senal> = Vec::new();
@@ -379,7 +387,7 @@ pub fn analizar(entrada: &str) -> Informe {
         });
     }
 
-    // 9. Palabras de gancho en el dominio, la ruta o la consulta.
+    // 9. Palabras de gancho en el usuario, el dominio, la ruta o la consulta.
     if let Some(palabra) = primera_palabra_gancho(&texto_minusculas) {
         senales.push(Senal {
             codigo: "palabra_gancho",
@@ -558,12 +566,43 @@ pub fn explicacion(codigo: &str) -> Option<(&'static str, &'static str)> {
         .map(|explicacion| (explicacion.1, explicacion.2))
 }
 
+/// Divide el texto en segmentos alfanuméricos.
+///
+/// Una secuencia de letras y dígitos es un segmento; cualquier otro carácter («-», «_»,
+/// «.», «/», «:», «?», «=», «&»…) es separador. Así «verificacion-clave» da dos
+/// segmentos: «verificacion» y «clave».
+fn segmentos_alfanumericos(texto: &str) -> Vec<&str> {
+    texto
+        .split(|caracter: char| !caracter.is_alphanumeric())
+        .filter(|segmento| !segmento.is_empty())
+        .collect()
+}
+
 /// Primera palabra de gancho encontrada (el texto llega en minúsculas).
+///
+/// La palabra tiene que ser **igual** a uno de los segmentos del texto: «seguridadonline»
+/// no es la palabra «seguridad» y «miclave» no es la palabra «clave».
+///
+/// La excepción son las palabras que llevan un guion («sign-in»): al segmentar el texto
+/// se partirían en dos y nunca coincidirían, así que esas se siguen buscando como
+/// subcadena.
 pub fn primera_palabra_gancho(texto: &str) -> Option<&'static str> {
+    let segmentos = segmentos_alfanumericos(texto);
     palabras_gancho()
         .iter()
-        .find(|palabra| texto.contains(palabra.as_str()))
+        .find(|palabra| coincide_como_palabra(texto, &segmentos, palabra))
         .map(|palabra| palabra.as_str())
+}
+
+/// ¿La palabra de gancho aparece en el texto?
+///
+/// Como palabra completa (igual a un segmento) o, si lleva guion, como subcadena.
+fn coincide_como_palabra(texto: &str, segmentos: &[&str], palabra: &str) -> bool {
+    if palabra.contains('-') {
+        texto.contains(palabra)
+    } else {
+        segmentos.contains(&palabra)
+    }
 }
 
 /// La «clave» de una etiqueta: sin guiones y en minúsculas.
@@ -706,7 +745,7 @@ pub struct CasoDemo {
     pub nota: &'static str,
 }
 
-/// Los cinco enlaces de la demostración.
+/// Los seis enlaces de la demostración.
 pub const CASOS_DEMO: &[CasoDemo] = &[
     CasoDemo {
         url: "http://paypa1.com/login/verify",
@@ -727,6 +766,11 @@ pub const CASOS_DEMO: &[CasoDemo] = &[
         url: "https://www.bancounion.com.bo/verificacion-clave",
         esperado: Nivel::Bajo,
         nota: "Sitio real: el analizador lo marca por las palabras de la ruta (falso positivo).",
+    },
+    CasoDemo {
+        url: "https://www.bancounion.com.bo/",
+        esperado: Nivel::Bajo,
+        nota: "Sitio real del banco: ninguna señal sospechosa.",
     },
     CasoDemo {
         url: "https://www.google.com",
@@ -750,6 +794,16 @@ mod pruebas {
             .find(|senal| senal.codigo == codigo)
             .unwrap_or_else(|| panic!("falta la señal {codigo}"))
             .puntos
+    }
+
+    fn detalle_de(informe: &Informe, codigo: &str) -> String {
+        informe
+            .senales
+            .iter()
+            .find(|senal| senal.codigo == codigo)
+            .unwrap_or_else(|| panic!("falta la señal {codigo}"))
+            .detalle
+            .clone()
     }
 
     // ---------------------------------------------------------------- reglas
@@ -872,6 +926,95 @@ mod pruebas {
     fn detecta_palabra_de_gancho() {
         let informe = analizar("https://sitio-real.com/login");
         assert!(codigos(&informe).contains(&"palabra_gancho"));
+    }
+
+    #[test]
+    fn la_palabra_de_gancho_tiene_que_ser_una_palabra_completa() {
+        // «login» es un segmento exacto de la ruta: sí cuenta.
+        let informe = analizar("http://paypa1.com/login/verify");
+        assert!(codigos(&informe).contains(&"palabra_gancho"));
+        assert_eq!(
+            detalle_de(&informe, "palabra_gancho"),
+            "Palabra de gancho: «login»"
+        );
+    }
+
+    #[test]
+    fn la_palabra_de_gancho_se_ve_en_un_dominio_con_guiones() {
+        let informe = analizar("http://paypal.secure-verify-login.com/account");
+        assert!(codigos(&informe).contains(&"palabra_gancho"));
+        assert_eq!(
+            detalle_de(&informe, "palabra_gancho"),
+            "Palabra de gancho: «login»"
+        );
+    }
+
+    #[test]
+    fn la_palabra_de_gancho_reconoce_un_segmento_exacto_de_la_ruta() {
+        // «clave» es un segmento exacto: la ruta sí es sospechosa.
+        let informe = analizar("https://www.bancounion.com.bo/verificacion-clave");
+        assert!(codigos(&informe).contains(&"palabra_gancho"));
+        assert_eq!(
+            detalle_de(&informe, "palabra_gancho"),
+            "Palabra de gancho: «clave»"
+        );
+    }
+
+    #[test]
+    fn una_palabra_dentro_de_otra_no_cuenta() {
+        // «seguridadonline» no es la palabra «seguridad».
+        let informe = analizar("https://seguridadonline.com/");
+        assert!(
+            !codigos(&informe).contains(&"palabra_gancho"),
+            "no debería marcar «seguridad» dentro de «seguridadonline»: {:?}",
+            informe.senales
+        );
+    }
+
+    #[test]
+    fn una_clave_dentro_del_dominio_no_cuenta() {
+        // «miclave» no es la palabra «clave».
+        let informe = analizar("https://miclave.com/");
+        assert!(
+            !codigos(&informe).contains(&"palabra_gancho"),
+            "no debería marcar «clave» dentro de «miclave»: {:?}",
+            informe.senales
+        );
+    }
+
+    #[test]
+    fn una_palabra_con_guion_se_busca_como_subcadena() {
+        // Excepción: «sign-in» se partiría en dos segmentos y nunca coincidiría.
+        let informe = analizar("https://ejemplo.com/sign-in");
+        assert!(codigos(&informe).contains(&"palabra_gancho"));
+        assert_eq!(
+            detalle_de(&informe, "palabra_gancho"),
+            "Palabra de gancho: «sign-in»"
+        );
+    }
+
+    #[test]
+    fn la_parte_antes_del_arroba_tambien_se_inspecciona() {
+        let informe = analizar("http://actualizar-cuenta@ejemplo.com/");
+        assert!(codigos(&informe).contains(&"palabra_gancho"));
+        assert_eq!(
+            detalle_de(&informe, "palabra_gancho"),
+            "Palabra de gancho: «actualizar»"
+        );
+        // La señal del «@» sigue intacta.
+        assert!(codigos(&informe).contains(&"usuario_oculto"));
+        assert_eq!(puntos_de(&informe, "usuario_oculto"), 2);
+    }
+
+    #[test]
+    fn el_sitio_real_del_banco_no_da_ninguna_senal() {
+        let informe = analizar("https://www.bancounion.com.bo/");
+        assert_eq!(informe.nivel, Nivel::Bajo);
+        assert!(
+            informe.senales.is_empty(),
+            "un sitio real no debería dar señales: {:?}",
+            informe.senales
+        );
     }
 
     #[test]
