@@ -574,11 +574,25 @@ fn clave_de_marca(etiqueta: &str) -> String {
 }
 
 /// ¿El dominio usa el nombre de una marca en alguna de sus etiquetas?
+///
+/// La marca tiene que aparecer como **palabra completa** («paypal-seguro»,
+/// «bcp-verificar») o **al principio** de una etiqueta («paypalseguro»). Antes bastaba
+/// con que fuera una subcadena, y eso marcaba `airbnb.com` como si fuera `bnb`.
 pub fn usa_nombre_de_marca(dominio: &str, nombre: &str) -> bool {
     let marca = clave_de_marca(nombre);
+    if marca.is_empty() {
+        return false;
+    }
     dominio.split('.').any(|etiqueta| {
-        let clave = clave_de_marca(etiqueta);
-        clave == marca || (clave.len() > marca.len() && clave.contains(&marca))
+        let clave = etiqueta.to_ascii_lowercase();
+        if clave.starts_with(&marca) {
+            return true;
+        }
+        // Palabras completas dentro de la etiqueta: «paypal-seguro» → «paypal».
+        clave
+            .split(|caracter: char| !caracter.is_alphanumeric())
+            .filter(|segmento| !segmento.is_empty())
+            .any(|segmento| clave_de_marca(segmento) == marca)
     })
 }
 
@@ -673,6 +687,12 @@ pub fn imita_una_marca(dominio: &str, nombre: &str) -> bool {
     let normalizado = normalizar_homoglifos(&clave_de_marca(primera));
     let marca = normalizar_homoglifos(&clave_de_marca(nombre));
     if normalizado.is_empty() || marca.is_empty() {
+        return false;
+    }
+    // Una marca de menos de cuatro letras («bcp», «bnb») tiene demasiados parecidos:
+    // cualquier dominio de tres letras casi igual daría un positivo. Esas marcas las
+    // sigue cubriendo la regla de marca, que compara palabras completas.
+    if marca.len() < 4 {
         return false;
     }
     // Una diferencia mínima: o es la misma marca con una letra cambiada, de más o de menos.
@@ -1182,6 +1202,70 @@ mod pruebas {
                 "explicación sin detalle: {codigo}"
             );
         }
+    }
+
+    #[test]
+    fn la_marca_tiene_que_ser_una_palabra_del_dominio() {
+        // El falso positivo que se corrigió: «bnb» estaba dentro de «airbnb».
+        for url in [
+            "https://airbnb.com/",
+            "https://www.airbnb.com/",
+            "https://airbnb.com.bo/",
+            "https://pineapple.com/",
+            "https://www.bancounion.com.bo/",
+            "https://bnb.com.bo/",
+        ] {
+            let senales = analizar(url).senales;
+            assert!(
+                !senales.iter().any(|senal| senal.codigo == "marca_falsa"),
+                "{url} no debe marcarse como marca falsa"
+            );
+        }
+    }
+
+    #[test]
+    fn las_marcas_se_siguen_detectando() {
+        for url in [
+            "https://paypal-seguro.com/",
+            "https://paypalseguro.com/",
+            "https://bcp-verificar.com/",
+            "https://bnb-seguro.com/",
+            "https://bancoestado-verifica.com/",
+        ] {
+            let senales = analizar(url).senales;
+            assert!(
+                senales.iter().any(|senal| senal.codigo == "marca_falsa"),
+                "{url} debe marcarse como marca falsa"
+            );
+        }
+    }
+
+    #[test]
+    fn una_marca_pegada_al_final_no_se_marca() {
+        // Límite conocido y asumido: la marca tiene que aparecer al principio de la
+        // etiqueta o como palabra separada. «mypaypal» se parece mucho a un ataque a
+        // PayPal, pero aceptarlo volvería a marcar «pineapple» como si fuera «apple».
+        let senales = analizar("https://mypaypal.com/").senales;
+        assert!(
+            !senales.iter().any(|senal| senal.codigo == "marca_falsa"),
+            "una marca pegada al final no se marca: es un límite conocido"
+        );
+    }
+
+    #[test]
+    fn las_marcas_cortas_no_generan_typosquatting() {
+        // Con tres letras hay demasiados parecidos: «bmb» no es un ataque a «bnb».
+        let senales = analizar("http://bmb.com/").senales;
+        assert!(
+            !senales.iter().any(|senal| senal.codigo == "typosquatting"),
+            "una marca de tres letras no debe producir typosquatting"
+        );
+        // Con una marca larga, sí.
+        let senales = analizar("http://paypa1.com/").senales;
+        assert!(
+            senales.iter().any(|senal| senal.codigo == "typosquatting"),
+            "paypa1 debe detectarse como typosquatting"
+        );
     }
 
     #[test]
