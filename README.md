@@ -4,6 +4,8 @@
 [![Demo en vivo](https://img.shields.io/badge/demo%20en%20vivo-1f4fd8?style=flat-square)](https://runer0101.github.io/analizador-phishing/)
 [![Licencia](https://img.shields.io/badge/licencia-MIT-1e7a45?style=flat-square)](LICENSE)
 
+**Demo en vivo:** [runer0101.github.io/analizador-phishing](https://runer0101.github.io/analizador-phishing/)
+
 Herramienta de seguridad para analizar enlaces sospechosos: **lee el enlace como texto** y
 devuelve un veredicto de riesgo con el motivo de cada señal. **Nunca visita la URL**: no pide
 DNS, no abre conexiones, no sale a internet.
@@ -14,7 +16,6 @@ DNS, no abre conexiones, no sale a internet.
 - Salida para terminal (con color) y salida JSON para máquinas
 - La misma herramienta corre en el navegador con WebAssembly
 
-> **Demo en vivo:** [runer0101.github.io/analizador-phishing](https://runer0101.github.io/analizador-phishing/)
 > El análisis ocurre en el navegador del visitante: el enlace no sale de su equipo.
 >
 > **Descargas:** [release v0.4.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.4.0)
