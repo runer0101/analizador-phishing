@@ -14,7 +14,7 @@ DNS, no abre conexiones, no sale a internet.
 - Salida para terminal (con color) y salida JSON para máquinas
 - La misma herramienta corre en el navegador con WebAssembly
 
-> **Demo en vivo:** <https://runer0101.github.io/analizador-phishing/>
+> **Demo en vivo:** [runer0101.github.io/analizador-phishing](https://runer0101.github.io/analizador-phishing/)
 > El análisis ocurre en el navegador del visitante: el enlace no sale de su equipo.
 >
 > **Descargas:** [release v0.4.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.4.0)
