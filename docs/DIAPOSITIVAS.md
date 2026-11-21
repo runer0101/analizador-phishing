@@ -33,28 +33,28 @@ repositorio `honeypot-casero`.
 ```
 🔴 ALTO — 5 pts, 3 señales
   http://paypa1.com/login/verify
-    +1  no_https    No usa HTTPS: el tráfico puede interceptarse
-    +1  hook_words  Palabra de gancho: «login»
-    +3  typosquat   Imita a paypal.com (typosquatting)
+    +1  sin_https       No usa HTTPS: el tráfico puede interceptarse
+    +1  palabra_gancho  Palabra de gancho: «login»
+    +3  typosquatting   Imita a paypal.com con una diferencia mínima
 ```
 
 ---
 
 ## 4 · Las señales en una línea
 
-| Señal | Puntos | Detecta |
-| --- | --- | --- |
-| `no_https` | 1 | sin HTTPS |
-| `ip_host` | 2 | IP en vez de dominio |
-| `userinfo` | 2 | el `«@»` que esconde el destino |
-| `deep_subdomain` | 1 | demasiados subdominios |
-| `punycode` | 2 | letras camufladas |
-| `shortener` | 2 | destino oculto |
-| `suspicious_tld` | 1 | `.xyz`, `.top`, … |
-| `hyphen_chain` | 1 | muchos guiones |
-| `hook_words` | 1 | `login`, `clave`, `verificar`… |
-| `brand_impersonation` | 3 | marca que no es la oficial |
-| `typosquat` | 3 | marca imitada (`paypa1`) |
+| Señal | Código | Puntos | Detecta |
+| --- | --- | --- | --- |
+| No usa HTTPS | `sin_https` | 1 | Sin HTTPS |
+| IP en lugar de dominio | `ip_dominio` | 2 | IP en vez de dominio (también decimal, hex. u octal) |
+| El «@» que esconde el destino | `usuario_oculto` | 2 | El dominio real está detrás de otro |
+| Demasiados subdominios | `subdominios` | 1 | El dominio real está al final |
+| Letras camufladas | `letras_camufladas` | 2 | Punycode o letras no latinas |
+| Link acortado | `acortador` | 2 | Destino oculto |
+| Terminación poco confiable | `terminacion_rara` | 1 | `.xyz`, `.top`, … |
+| Muchos guiones | `guiones` | 1 | Patrón de suplantación |
+| Palabra de gancho | `palabra_gancho` | 1 | `login`, `clave`, `verificar`… |
+| Usa el nombre de una marca | `marca_falsa` | 3 | Marca que no es la oficial |
+| Imita a una marca | `typosquatting` | 3 | Un cambio de diferencia (de más, de menos, cambiada) |
 
 ---
 

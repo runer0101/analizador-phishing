@@ -1,8 +1,8 @@
 // Analizador de phishing en el navegador.
 //
 // El motor de reglas está compilado a WebAssembly: el análisis ocurre en el equipo del
-// visitante y el enlace no sale de ahí. La comunicación con el módulo es mínima: reservar
-// memoria, escribir el texto, pedir el veredicto en JSON y liberarla.
+// visitante y el enlace no sale de ahí. La comunicación con el módulo es mínima:
+// reservar memoria, escribir el texto, pedir el veredicto en JSON y devolver la memoria.
 
 const CASOS = [
   { url: "http://paypa1.com/login/verify", nota: "typosquatting de PayPal" },
@@ -12,10 +12,25 @@ const CASOS = [
   { url: "https://www.google.com", nota: "sitio legítimo" },
 ];
 
+// Nombre legible de cada señal, para que se lea sin saber de código.
+const ETIQUETAS = {
+  sin_https: "No usa HTTPS",
+  ip_dominio: "IP en lugar de dominio",
+  usuario_oculto: "El «@» que esconde el destino",
+  subdominios: "Demasiados subdominios",
+  letras_camufladas: "Letras camufladas",
+  acortador: "Link acortado",
+  terminacion_rara: "Terminación poco confiable",
+  guiones: "Muchos guiones en el dominio",
+  palabra_gancho: "Palabra de gancho",
+  marca_falsa: "Usa el nombre de una marca",
+  typosquatting: "Imita a una marca (typosquatting)",
+};
+
 const NIVELES = {
-  high: { etiqueta: "ALTO", clase: "alto" },
-  medium: { etiqueta: "MEDIO", clase: "medio" },
-  low: { etiqueta: "BAJO", clase: "bajo" },
+  alto: { etiqueta: "ALTO", clase: "alto" },
+  medio: { etiqueta: "MEDIO", clase: "medio" },
+  bajo: { etiqueta: "BAJO", clase: "bajo" },
 };
 
 const formulario = document.getElementById("formulario");
@@ -37,18 +52,21 @@ async function iniciar() {
 }
 
 /** Analiza el enlace y devuelve el veredicto en JSON. */
-function analizar(url) {
+function analizarEnlace(url) {
   const bytes = new TextEncoder().encode(url);
-  const puntero = modulo.wasm_alloc(bytes.length);
+  const puntero = modulo.wasm_asignar_memoria(bytes.length);
   new Uint8Array(modulo.memory.buffer).set(bytes, puntero);
 
-  const resultadoPtr = modulo.wasm_analyze(puntero, bytes.length);
-  const largo = modulo.wasm_last_len();
+  const veredicto = modulo.wasm_analizar(puntero, bytes.length);
+  const largo = modulo.wasm_ultimo_tamano();
   const json = new TextDecoder().decode(
-    new Uint8Array(modulo.memory.buffer, resultadoPtr, largo)
+    new Uint8Array(modulo.memory.buffer, veredicto, largo)
   );
 
-  modulo.wasm_dealloc(puntero, bytes.length);
+  // Se devuelve la memoria: sin esto, cada análisis dejaría su JSON en el navegador.
+  modulo.wasm_liberar_resultado(veredicto, largo);
+  modulo.wasm_liberar_memoria(puntero, bytes.length);
+
   return JSON.parse(json);
 }
 
@@ -62,15 +80,15 @@ function crear(nodo, texto, clase) {
 function pintar(datos) {
   resultado.replaceChildren();
   resultado.hidden = false;
-  const nivel = NIVELES[datos.level] || { etiqueta: "—", clase: "" };
+  const nivel = NIVELES[datos.nivel] || { etiqueta: "—", clase: "" };
 
   const veredicto = crear("div", undefined, "veredicto");
   veredicto.append(crear("span", nivel.etiqueta, `insignia ${nivel.clase}`));
-  veredicto.append(crear("span", `${datos.score} puntos`, "puntaje"));
-  veredicto.append(crear("span", datos.host, "dominio"));
+  veredicto.append(crear("span", `${datos.puntos} puntos`, "puntaje"));
+  veredicto.append(crear("span", datos.dominio, "dominio"));
   resultado.append(veredicto);
 
-  if (datos.reasons.length === 0) {
+  if (datos.senales.length === 0) {
     resultado.append(crear("p", "Ninguna señal sospechosa.", "nota"));
     return;
   }
@@ -78,18 +96,26 @@ function pintar(datos) {
   const tabla = crear("table", undefined, "tabla señales");
   const cabecera = crear("thead");
   const filaCabecera = crear("tr");
-  filaCabecera.append(crear("th", "Señal"), crear("th", "Puntos", "num"), crear("th", "Detalle"));
+  const celdaSenal = crear("th", "Señal");
+  celdaSenal.scope = "col";
+  const celdaPuntos = crear("th", "Puntos", "num");
+  celdaPuntos.scope = "col";
+  const celdaDetalle = crear("th", "Detalle");
+  celdaDetalle.scope = "col";
+  filaCabecera.append(celdaSenal, celdaPuntos, celdaDetalle);
   cabecera.append(filaCabecera);
   tabla.append(cabecera);
 
   const cuerpo = crear("tbody");
-  for (const razon of datos.reasons) {
+  for (const senal of datos.senales) {
     const fila = crear("tr");
-    const celdaCodigo = crear("td");
-    celdaCodigo.append(crear("code", razon.code));
-    fila.append(celdaCodigo);
-    fila.append(crear("td", `+${razon.points}`, "num"));
-    fila.append(crear("td", razon.detail));
+    const celdaNombre = crear("td");
+    celdaNombre.append(crear("strong", ETIQUETAS[senal.codigo] || senal.codigo));
+    celdaNombre.append(crear("br"));
+    celdaNombre.append(crear("code", senal.codigo));
+    fila.append(celdaNombre);
+    fila.append(crear("td", `+${senal.puntos}`, "num"));
+    fila.append(crear("td", senal.detalle));
     cuerpo.append(fila);
   }
   tabla.append(cuerpo);
@@ -104,9 +130,10 @@ function procesar(url) {
   estado.textContent = "";
   estado.classList.remove("error");
   try {
-    pintar(analizar(url));
+    pintar(analizarEnlace(url));
   } catch (error) {
     resultado.replaceChildren();
+    resultado.hidden = true;
     estado.textContent = `No se pudo analizar: ${error.message}`;
     estado.classList.add("error");
   }

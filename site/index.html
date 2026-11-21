@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Analizador de phishing — análisis estático de enlaces</title>
 <meta name="description" content="Analiza un enlace como texto y devuelve un veredicto de riesgo, sin visitarlo y sin enviarlo a ningún servidor.">
-<link rel="stylesheet" href="styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316181d'/%3E%3Cpath d='M16 7l8 3v6c0 5-3.4 8.2-8 9.5C11.4 24.2 8 21 8 16v-6z' fill='none' stroke='%23c0392b' stroke-width='2'/%3E%3Cpath d='M12 16l3 3 5.5-6' fill='none' stroke='%23f2f4f8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<a class="saltar" href="#analizador">Saltar al analizador</a>
+
 <header class="cabecera">
   <div class="contenedor">
     <p class="antetitulo">Actividad de ciberseguridad · 5 de diciembre</p>
@@ -20,7 +22,7 @@
 
 <main class="contenedor">
 
-  <section class="panel" aria-labelledby="titulo-analizador">
+  <section class="panel" id="analizador" aria-labelledby="titulo-analizador">
     <h2 id="titulo-analizador">Analiza un enlace</h2>
     <form id="formulario" class="formulario">
       <label class="etiqueta" for="enlace">Enlace completo</label>
@@ -34,11 +36,13 @@
     </form>
 
     <div id="estado" class="estado" role="status" aria-live="polite"></div>
-    <div id="resultado" class="resultado" hidden></div>
+    <div id="resultado" class="resultado" hidden aria-live="polite"></div>
   </section>
 
   <section class="panel" aria-labelledby="titulo-casos">
     <h2 id="titulo-casos">Casos de la demostración</h2>
+    <p class="nota">Pulsa uno y verás el veredicto al instante. El cuarto caso es un sitio real:
+      el analizador lo marca y por qué se lo decimos.</p>
     <ul class="casos" id="casos"></ul>
   </section>
 
@@ -46,26 +50,89 @@
     <h2 id="titulo-reglas">Las once señales</h2>
     <div class="tabla-envoltorio">
       <table class="tabla">
+        <caption class="solo-lectores">Señal, puntaje y qué detecta cada regla</caption>
         <thead>
-          <tr><th>Señal</th><th class="num">Puntos</th><th>Detecta</th></tr>
+          <tr><th scope="col">Señal</th><th scope="col" class="num">Puntos</th><th scope="col">Detecta</th></tr>
         </thead>
         <tbody>
-          <tr><td><code>no_https</code></td><td class="num">1</td><td>El enlace no usa HTTPS</td></tr>
-          <tr><td><code>ip_host</code></td><td class="num">2</td><td>Una IP en vez de un dominio con nombre</td></tr>
-          <tr><td><code>userinfo</code></td><td class="num">2</td><td>El «@» que esconde el destino real</td></tr>
-          <tr><td><code>deep_subdomain</code></td><td class="num">1</td><td>Cuatro o más etiquetas en el dominio</td></tr>
-          <tr><td><code>punycode</code></td><td class="num">2</td><td>Letras camufladas (<code>xn--</code>)</td></tr>
-          <tr><td><code>shortener</code></td><td class="num">2</td><td>Acortadores que esconden el destino</td></tr>
-          <tr><td><code>suspicious_tld</code></td><td class="num">1</td><td>Terminaciones baratas (<code>.xyz</code>, <code>.top</code>…)</td></tr>
-          <tr><td><code>hyphen_chain</code></td><td class="num">1</td><td>Dominios con tres o más guiones</td></tr>
-          <tr><td><code>hook_words</code></td><td class="num">1</td><td>Palabras de gancho: <code>login</code>, <code>clave</code>, <code>verificar</code>…</td></tr>
-          <tr><td><code>brand_impersonation</code></td><td class="num">3</td><td>Usa el nombre de una marca y no es el sitio oficial</td></tr>
-          <tr><td><code>typosquat</code></td><td class="num">3</td><td>Imita una marca cambiando una letra (<code>paypa1.com</code>)</td></tr>
+          <tr><td><strong>No usa HTTPS</strong><br><code>sin_https</code></td><td class="num">1</td><td>El enlace no usa HTTPS: el tráfico puede interceptarse</td></tr>
+          <tr><td><strong>IP en lugar de dominio</strong><br><code>ip_dominio</code></td><td class="num">2</td><td>Una dirección IP en vez de un dominio, incluso escrita en decimal, hexadecimal u octal</td></tr>
+          <tr><td><strong>El «@» que esconde el destino</strong><br><code>usuario_oculto</code></td><td class="num">2</td><td>El dominio real está escondido detrás de otro (también codificado como <code>%40</code>)</td></tr>
+          <tr><td><strong>Demasiados subdominios</strong><br><code>subdominios</code></td><td class="num">1</td><td>Cuatro o más etiquetas: el dominio de verdad está al final</td></tr>
+          <tr><td><strong>Letras camufladas</strong><br><code>letras_camufladas</code></td><td class="num">2</td><td>Punycode (<code>xn--</code>) o letras no latinas que imitan a las verdaderas</td></tr>
+          <tr><td><strong>Link acortado</strong><br><code>acortador</code></td><td class="num">2</td><td>Acortadores que esconden el destino real</td></tr>
+          <tr><td><strong>Terminación poco confiable</strong><br><code>terminacion_rara</code></td><td class="num">1</td><td>Terminaciones baratas (<code>.xyz</code>, <code>.top</code>, <code>.tk</code>…)</td></tr>
+          <tr><td><strong>Muchos guiones</strong><br><code>guiones</code></td><td class="num">1</td><td>Dominios con tres o más guiones: patrón habitual de suplantación</td></tr>
+          <tr><td><strong>Palabra de gancho</strong><br><code>palabra_gancho</code></td><td class="num">1</td><td><code>login</code>, <code>clave</code>, <code>verificar</code>, <code>urgente</code>…</td></tr>
+          <tr><td><strong>Usa el nombre de una marca</strong><br><code>marca_falsa</code></td><td class="num">3</td><td>Usa el nombre de una marca conocida y no es el sitio oficial</td></tr>
+          <tr><td><strong>Imita a una marca</strong><br><code>typosquatting</code></td><td class="num">3</td><td>Un solo cambio de diferencia: letra de más, de menos, cambiada o letras parecidas</td></tr>
         </tbody>
       </table>
     </div>
     <p class="nota"><strong>5+ puntos</strong> → ALTO · <strong>3-4</strong> → MEDIO · <strong>0-2</strong> → BAJO.
       Un veredicto no es una sentencia: es una señal de que el enlace merece revisión humana.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="titulo-limitaciones">
+    <h2 id="titulo-limitaciones">Limitaciones</h2>
+    <p>El analizador mira <strong>solo la dirección</strong>, sin abrir el enlace. Eso tiene un precio:</p>
+    <ul class="lista">
+      <li><strong>Falsos positivos</strong>: un sitio legítimo puede sumar puntos. Un banco real con
+        <code>verificacion</code> en la ruta o con muchos guiones sale como sospechoso, aunque sea de fiar.</li>
+      <li><strong>Falsos negativos</strong>: un phishing con dominio nuevo, limpio y corto puede salir
+        en verde. Ninguna lista de reglas cubre todos los casos.</li>
+      <li><strong>No ve la página</strong>: un formulario falso dentro de <code>facebook.com</code>
+        real no se detecta aquí.</li>
+      <li><strong>No comprueba nada fuera del enlace</strong>: quién lo envía, a qué hora y desde
+        dónde se requeriría revisar el correo y el servidor de correo, no solo la URL.</li>
+    </ul>
+    <p class="nota">Por eso la conclusión correcta no es «esto es phishing», sino
+      <strong>«esto merece revisión humana»</strong>.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="titulo-marcas">
+    <h2 id="titulo-marcas">Marcas vigiladas</h2>
+    <p>Cuando el dominio usa el nombre de una de estas marcas pero no es el sitio oficial,
+      el analizador suma 3 puntos:</p>
+    <ul class="marcas">
+      <li>PayPal <small>paypal.com</small></li>
+      <li>Google <small>google.com</small></li>
+      <li>Facebook <small>facebook.com</small></li>
+      <li>WhatsApp <small>whatsapp.com</small></li>
+      <li>Microsoft <small>microsoft.com</small></li>
+      <li>Amazon <small>amazon.com</small></li>
+      <li>Apple <small>apple.com</small></li>
+      <li>BCP <small>bcp.com.bo</small></li>
+      <li>BNB <small>bnb.com.bo</small></li>
+      <li>Banco Unión <small>bancounion.com.bo</small></li>
+      <li>Mercantil Santa Cruz <small>mercantilsantacruz.com.bo</small></li>
+      <li>Banco Estado <small>bancoestado.com.bo</small></li>
+    </ul>
+  </section>
+
+  <section class="panel" aria-labelledby="titulo-programa">
+    <h2 id="titulo-programa">El programa de terminal</h2>
+    <p>La misma herramienta se puede instalar y usar sin navegador. Hay binarios para:</p>
+    <ul class="lista">
+      <li><strong>Linux</strong> (x86-64 y ARM64) — archivo <code>phishing-analyzer-linux-x86_64</code></li>
+      <li><strong>macOS</strong> (Intel y Apple Silicon) — <code>phishing-analyzer-macos-aarch64</code></li>
+      <li><strong>Windows</strong> (x86-64) — <code>phishing-analyzer-windows-x86_64.exe</code></li>
+    </ul>
+    <p>Cómo se usa:</p>
+    <pre class="codigo"><code># la demostración completa, con los cinco casos
+./phishing-analyzer-linux-x86_64 --demo
+
+# un enlace suelto
+./phishing-analyzer-linux-x86_64 "http://paypa1.com/login/verify"
+
+# una lista de enlaces, uno por línea
+./phishing-analyzer-linux-x86_64 --file enlaces.txt
+
+# salida JSON para integrarlo con otro sistema
+./phishing-analyzer-linux-x86_64 --json "https://www.google.com"</code></pre>
+    <p class="nota">Descargas, con sus sumas SHA-256, en la
+      <a href="https://github.com/runer0101/analizador-phishing/releases/tag/v0.1.0">release v0.1.0</a>.
+      En Windows se ejecuta con <code>phishing-analyzer-windows-x86_64.exe --demo</code>.</p>
   </section>
 
 </main>

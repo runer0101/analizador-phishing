@@ -1,13 +1,13 @@
-//! Command line interface of the phishing analyzer.
+//! Línea de órdenes del analizador de phishing.
 
-use phishing_analyzer::{analyze, Level, Report, DEMO_CASES};
+use phishing_analyzer::{analizar, Informe, Nivel, CASOS_DEMO};
 use std::env;
 use std::fs;
 use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "\
+const AYUDA: &str = "\
 phishing-analyzer — analiza enlaces de phishing como texto, sin visitarlos
 
 Uso:
@@ -24,217 +24,221 @@ El veredicto es información, no un fallo: el código de salida es 0 aunque se d
 enlaces sospechosos. Solo los errores de uso devuelven 2.
 ";
 
-struct Options {
+struct Opciones {
     urls: Vec<String>,
-    file: Option<PathBuf>,
+    archivo: Option<PathBuf>,
     json: bool,
     demo: bool,
     color: bool,
-    help: bool,
+    ayuda: bool,
 }
 
 fn main() -> ExitCode {
-    let args: Vec<String> = env::args().skip(1).collect();
-    match run(&args) {
-        Ok(code) => code,
-        Err(err) => {
-            eprintln!("phishing-analyzer: {err}");
+    let argumentos: Vec<String> = env::args().skip(1).collect();
+    match ejecutar(&argumentos) {
+        Ok(codigo) => codigo,
+        Err(error) => {
+            eprintln!("phishing-analyzer: {error}");
             ExitCode::from(2)
         }
     }
 }
 
-fn run(args: &[String]) -> Result<ExitCode, String> {
-    let options = parse_args(args)?;
+fn ejecutar(argumentos: &[String]) -> Result<ExitCode, String> {
+    let opciones = leer_opciones(argumentos)?;
 
-    if options.help {
-        print!("{USAGE}");
+    if opciones.ayuda {
+        print!("{AYUDA}");
         return Ok(ExitCode::SUCCESS);
     }
 
-    let mut urls: Vec<String> = options.urls.clone();
-    if let Some(path) = &options.file {
-        urls.extend(read_links(path)?);
+    let mut urls: Vec<String> = opciones.urls.clone();
+    if let Some(ruta) = &opciones.archivo {
+        urls.extend(leer_enlaces(ruta)?);
     }
-    let demo_mode = options.demo;
-    if demo_mode {
-        for case in DEMO_CASES {
-            urls.push(case.url.to_string());
+    let modo_demo = opciones.demo;
+    if modo_demo {
+        for caso in CASOS_DEMO {
+            urls.push(caso.url.to_string());
         }
     }
 
     if urls.is_empty() {
-        eprint!("{USAGE}");
+        eprint!("{AYUDA}");
         return Ok(ExitCode::from(2));
     }
 
-    let color = options.color && io::stdout().is_terminal() && env::var_os("NO_COLOR").is_none();
-    let reports: Vec<Report> = urls.iter().map(|url| analyze(url)).collect();
+    let color = opciones.color && io::stdout().is_terminal() && env::var_os("NO_COLOR").is_none();
+    let informes: Vec<Informe> = urls.iter().map(|url| analizar(url)).collect();
 
-    let stdout = io::stdout();
-    let mut out = stdout.lock();
+    let salida = io::stdout();
+    let mut salida = salida.lock();
 
-    if options.json {
-        let items: Vec<String> = reports.iter().map(|r| r.to_json()).collect();
-        writeln!(out, "[{}]", items.join(",")).map_err(|e| e.to_string())?;
+    if opciones.json {
+        let objetos: Vec<String> = informes.iter().map(|informe| informe.a_json()).collect();
+        writeln!(salida, "[{}]", objetos.join(",")).map_err(|e| e.to_string())?;
         return Ok(ExitCode::SUCCESS);
     }
 
-    for (index, report) in reports.iter().enumerate() {
-        if index > 0 {
-            writeln!(out).map_err(|e| e.to_string())?;
+    for (indice, informe) in informes.iter().enumerate() {
+        if indice > 0 {
+            writeln!(salida).map_err(|e| e.to_string())?;
         }
-        print_report(&mut out, report, color).map_err(|e| e.to_string())?;
+        mostrar_informe(&mut salida, informe, color).map_err(|e| e.to_string())?;
     }
 
-    if demo_mode {
-        writeln!(out).map_err(|e| e.to_string())?;
-        print_table(&mut out, &reports, color).map_err(|e| e.to_string())?;
-        writeln!(out).map_err(|e| e.to_string())?;
-        print_notes(&mut out).map_err(|e| e.to_string())?;
+    if modo_demo {
+        writeln!(salida).map_err(|e| e.to_string())?;
+        mostrar_tabla(&mut salida, &informes, color).map_err(|e| e.to_string())?;
+        writeln!(salida).map_err(|e| e.to_string())?;
+        mostrar_notas(&mut salida).map_err(|e| e.to_string())?;
     }
 
     Ok(ExitCode::SUCCESS)
 }
 
-fn parse_args(args: &[String]) -> Result<Options, String> {
-    let mut options = Options {
+fn leer_opciones(argumentos: &[String]) -> Result<Opciones, String> {
+    let mut opciones = Opciones {
         urls: Vec::new(),
-        file: None,
+        archivo: None,
         json: false,
         demo: false,
         color: true,
-        help: false,
+        ayuda: false,
     };
 
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        match arg.as_str() {
-            "--json" => options.json = true,
-            "--demo" => options.demo = true,
-            "--no-color" => options.color = false,
+    let mut iterador = argumentos.iter();
+    while let Some(argumento) = iterador.next() {
+        match argumento.as_str() {
+            "--json" => opciones.json = true,
+            "--demo" => opciones.demo = true,
+            "--no-color" => opciones.color = false,
             "--file" => {
-                let path = iter
+                let ruta = iterador
                     .next()
                     .ok_or_else(|| "falta la ruta del archivo en --file".to_string())?;
-                options.file = Some(PathBuf::from(path));
+                opciones.archivo = Some(PathBuf::from(ruta));
             }
-            "-h" | "--help" => options.help = true,
-            other if other.starts_with("--") => {
-                return Err(format!("opción desconocida: {other}"));
+            "-h" | "--help" => opciones.ayuda = true,
+            otro if otro.starts_with("--") => {
+                return Err(format!("opción desconocida: {otro}"));
             }
-            other => options.urls.push(other.to_string()),
+            otro => opciones.urls.push(otro.to_string()),
         }
     }
 
-    Ok(options)
+    Ok(opciones)
 }
 
 /// Lee los enlaces de un archivo: uno por línea, se ignoran las vacías y las de comentario.
-fn read_links(path: &PathBuf) -> Result<Vec<String>, String> {
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("no se pudo leer {}: {e}", path.display()))?;
-    Ok(content
+fn leer_enlaces(ruta: &PathBuf) -> Result<Vec<String>, String> {
+    let contenido =
+        fs::read_to_string(ruta).map_err(|e| format!("no se pudo leer {}: {e}", ruta.display()))?;
+    Ok(contenido
         .lines()
         .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter(|linea| !linea.is_empty() && !linea.starts_with('#'))
         .map(str::to_string)
         .collect())
 }
 
-fn paint(color: bool, code: &str, text: &str) -> String {
+fn pintar(color: bool, codigo: &str, texto: &str) -> String {
     if color {
-        format!("{code}{text}\x1b[0m")
+        format!("{codigo}{texto}\x1b[0m")
     } else {
-        text.to_string()
+        texto.to_string()
     }
 }
 
-fn emoji(level: Level) -> &'static str {
-    match level {
-        Level::Low => "🟢",
-        Level::Medium => "🟡",
-        Level::High => "🔴",
+fn emoji(nivel: Nivel) -> &'static str {
+    match nivel {
+        Nivel::Bajo => "🟢",
+        Nivel::Medio => "🟡",
+        Nivel::Alto => "🔴",
     }
 }
 
-fn print_report(out: &mut impl Write, report: &Report, color: bool) -> io::Result<()> {
-    let level_text = paint(color, report.level.color(), report.level.label());
-    let plural = if report.reasons.len() == 1 { "" } else { "es" };
-    let points = if report.score == 1 { "pt" } else { "pts" };
+fn mostrar_informe(salida: &mut impl Write, informe: &Informe, color: bool) -> io::Result<()> {
+    let nivel = pintar(color, informe.nivel.color(), informe.nivel.etiqueta());
+    let plural = if informe.senales.len() == 1 { "" } else { "es" };
+    let puntos = if informe.puntos == 1 {
+        "punto"
+    } else {
+        "puntos"
+    };
     writeln!(
-        out,
+        salida,
         "{} {} — {} {}, {} señal{}",
-        emoji(report.level),
-        level_text,
-        report.score,
-        points,
-        report.reasons.len(),
+        emoji(informe.nivel),
+        nivel,
+        informe.puntos,
+        puntos,
+        informe.senales.len(),
         plural
     )?;
-    writeln!(out, "  {}", report.input)?;
-    writeln!(out, "  dominio: {}", report.host)?;
+    writeln!(salida, "  {}", informe.url)?;
+    writeln!(salida, "  dominio: {}", informe.dominio)?;
 
-    let width = report
-        .reasons
+    let ancho = informe
+        .senales
         .iter()
-        .map(|r| r.code.len())
+        .map(|senal| senal.codigo.len())
         .max()
         .unwrap_or(0);
-    for reason in &report.reasons {
-        let points = paint(color, "\x1b[33m", &format!("+{}", reason.points));
+    for senal in &informe.senales {
+        let puntos = pintar(color, "\x1b[33m", &format!("+{}", senal.puntos));
         writeln!(
-            out,
-            "    {}  {:<width$}  {}",
-            points,
-            reason.code,
-            reason.detail,
-            width = width
+            salida,
+            "    {}  {:<ancho$}  {}",
+            puntos,
+            senal.codigo,
+            senal.detalle,
+            ancho = ancho
         )?;
     }
     Ok(())
 }
 
 /// Tabla resumen de la demostración.
-fn print_table(out: &mut impl Write, reports: &[Report], color: bool) -> io::Result<()> {
-    let url_width = reports
+fn mostrar_tabla(salida: &mut impl Write, informes: &[Informe], color: bool) -> io::Result<()> {
+    let ancho_url = informes
         .iter()
-        .map(|r| r.input.len())
+        .map(|informe| informe.url.len())
         .max()
         .unwrap_or(4)
         .max(4);
 
     writeln!(
-        out,
-        "{:<url_width$}  {:<5}  {:>3}  SEÑALES",
+        salida,
+        "{:<ancho_url$}  {:<5}  {:>3}  SEÑALES",
         "URL",
         "NIVEL",
         "PTS",
-        url_width = url_width
+        ancho_url = ancho_url
     )?;
-    writeln!(out, "{}", "-".repeat(url_width + 32))?;
+    writeln!(salida, "{}", "-".repeat(ancho_url + 32))?;
 
-    for report in reports {
-        let level = paint(color, report.level.color(), report.level.label());
-        let codes: Vec<&str> = report.reasons.iter().map(|r| r.code).collect();
+    for informe in informes {
+        let nivel = pintar(color, informe.nivel.color(), informe.nivel.etiqueta());
+        let codigos: Vec<&str> = informe.senales.iter().map(|senal| senal.codigo).collect();
         writeln!(
-            out,
-            "{:<url_width$}  {:<5}  {:>3}  {}",
-            report.input,
-            level,
-            report.score,
-            codes.join(", "),
-            url_width = url_width
+            salida,
+            "{:<ancho_url$}  {:<5}  {:>3}  {}",
+            informe.url,
+            nivel,
+            informe.puntos,
+            codigos.join(", "),
+            ancho_url = ancho_url
         )?;
     }
     Ok(())
 }
 
 /// Explica cada caso al público.
-fn print_notes(out: &mut impl Write) -> io::Result<()> {
-    writeln!(out, "Notas:")?;
-    for case in DEMO_CASES {
-        writeln!(out, "  • {} → {}", case.url, case.note)?;
+fn mostrar_notas(salida: &mut impl Write) -> io::Result<()> {
+    writeln!(salida, "Notas:")?;
+    for caso in CASOS_DEMO {
+        writeln!(salida, "  • {} → {}", caso.url, caso.nota)?;
     }
     Ok(())
 }

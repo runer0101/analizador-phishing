@@ -89,3 +89,35 @@ errores de uso. Color únicamente en terminal y nunca con `NO_COLOR` definido.
 - **L14** (2026-11-21, Kairos) — La URL de la demo también aparece en las diapositivas, en
   el guion, en la guía de ensayo y en el pie de la página, porque es el punto fuerte para
   la exposición: el análisis ocurre en el navegador del visitante.
+- **L15** (2026-11-21, señor) — Pide una revisión senior del proyecto: auditoría primero
+  (sin tocar nada), después la página web y al final las correcciones de severidad alta y
+  media. Pide además que **el código y los comentarios estén en español** y que sean fáciles
+  de explicar, porque tiene que presentar el 5 de diciembre.
+- **L16** (2026-11-21, Kairos) — Auditoría hecha con evidencia, no a ojo: 1221 entradas
+  hostiles y 26 casos límite ejecutados contra el binario, contraste de la página medido en
+  el navegador y búsqueda de cualquier referencia de red en el crate.
+  - **Alta**: IP en decimal/hexadecimal/octal sin detectar; `http:///dominio` dejaba el host
+    vacío; tabuladores y saltos de línea no se borraban como en el navegador; el WebAssembly
+    filtraba memoria (el JSON nunca se liberaba).
+  - **Media**: barra invertida `\` mal tratada; homoglifos en crudo sin detectar; typosquatting
+    limitado a un cambio de dígito; bancos bolivianos sin vigilar; «@» codificado (`%40`) sin
+    detectar; contraste de la insignia MEDIO (4.24:1, por debajo de 4.5:1); los guiones de
+    `xn--` contaban como guiones del dominio.
+- **L17** (2026-11-21, Kairos) — Correcciones aplicadas: el motor ahora imita al navegador al
+  leer el enlace (borra tabuladores, trata `\` como barra en http/https e ignora barras de
+  más), reconoce las IP en las cuatro notaciones, detecta el «@» codificado, reconoce las
+  letras no latinas, distingue el typosquatting con distancia de Damerau-Levenshtein y
+  homoglifos, vigila los bancos bolivianos y libera la memoria del WebAssembly.
+  Los 11 códigos de señal y los umbrales **no cambian**: solo se corrige y se amplía lo que
+  ya estaba anunciado.
+- **L18** (2026-11-21, Kairos) — Idioma: identificadores, comentarios, documentación de la
+  API, salida JSON y textos de la terminal en español. El JSON ahora usa las claves
+  `url`, `dominio`, `nivel`, `puntos` y `senales`.
+- **L19** (2026-11-21, Kairos) — Página: nombres de las señales en español, sección de
+  limitaciones, lista de marcas vigiladas con los bancos bolivianos, información del binario
+  por sistema operativo y cómo ejecutarlo, enlace para saltar al contenido y corrección del
+  contraste de la insignia MEDIO.
+- **L20** (2026-11-21, Kairos) — Pruebas: de 33 a 59 (48 unitarias y 11 de la terminal),
+  con los casos límite de la auditoría. La release publicada v0.1.0 **no se toca**: los
+  cambios de código quedan en `main` y la siguiente release será v0.2.0, que publica el
+  señor cuando lo ordene.

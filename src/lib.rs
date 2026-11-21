@@ -1,235 +1,177 @@
-//! Static phishing link analyzer.
+//! Analizador estático de enlaces de phishing.
 //!
-//! The analyzer **never visits the URL**: it reads it as text and applies a fixed set of
-//! rules that score the signals typical of fraud (plain HTTP, IP instead of a domain,
-//! impersonated brands, typosquatting, URL shorteners, punycode, bait words).
+//! La idea es sencilla: **el enlace se lee como texto y no se visita**. El programa no
+//! abre conexiones, no pide nombres de dominio y no sale a internet. Solo aplica una
+//! lista de reglas que reconocen señales típicas de fraude y las convierte en un
+//! veredicto: **ALTO**, **MEDIO** o **BAJO**.
 //!
-//! Standard library only: no external crates, no network, no DNS.
+//! Cada regla suma puntos. Al final se suman todos:
+//!
+//! | Puntos | Veredicto |
+//! | --- | --- |
+//! | 5 o más | **ALTO** |
+//! | 3 o 4 | **MEDIO** |
+//! | 0 a 2 | **BAJO** |
+//!
+//! Todo está escrito en español para que se pueda explicar en una presentación.
 
 use std::fmt;
 
-/// Risk level derived from the total score.
+/// La demostración del navegador compila esta biblioteca a WebAssembly; toda la
+/// frontera con JavaScript está en `wasm.rs`.
+#[cfg(target_arch = "wasm32")]
+mod wasm;
+
+/// Nivel de riesgo que devuelve el analizador.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Level {
-    Low,
-    Medium,
-    High,
+pub enum Nivel {
+    Bajo,
+    Medio,
+    Alto,
 }
 
-impl Level {
-    /// Thresholds of the activity: 5+ points is high, 3-4 medium, less than 3 low.
-    pub fn from_score(score: u32) -> Self {
-        match score {
-            0..=2 => Level::Low,
-            3..=4 => Level::Medium,
-            _ => Level::High,
+impl Nivel {
+    /// Convierte el total de puntos en un nivel de riesgo.
+    pub fn desde_puntos(puntos: u32) -> Self {
+        match puntos {
+            0..=2 => Nivel::Bajo,
+            3..=4 => Nivel::Medio,
+            _ => Nivel::Alto,
         }
     }
 
-    /// Label shown in the terminal (Spanish: this is the presentation).
-    pub fn label(self) -> &'static str {
+    /// Texto que se muestra en la terminal (mayúsculas).
+    pub fn etiqueta(self) -> &'static str {
         match self {
-            Level::Low => "BAJO",
-            Level::Medium => "MEDIO",
-            Level::High => "ALTO",
+            Nivel::Bajo => "BAJO",
+            Nivel::Medio => "MEDIO",
+            Nivel::Alto => "ALTO",
         }
     }
 
-    /// Stable token for JSON output.
+    /// Texto en minúsculas para el JSON.
     pub fn token(self) -> &'static str {
         match self {
-            Level::Low => "low",
-            Level::Medium => "medium",
-            Level::High => "high",
+            Nivel::Bajo => "bajo",
+            Nivel::Medio => "medio",
+            Nivel::Alto => "alto",
         }
     }
 
-    /// ANSI color: green, yellow, red.
+    /// Código de color ANSI: verde, amarillo o rojo.
     pub fn color(self) -> &'static str {
         match self {
-            Level::Low => "\x1b[32m",
-            Level::Medium => "\x1b[33m",
-            Level::High => "\x1b[31m",
+            Nivel::Bajo => "\x1b[32m",
+            Nivel::Medio => "\x1b[33m",
+            Nivel::Alto => "\x1b[31m",
         }
     }
 }
 
-impl fmt::Display for Level {
+impl fmt::Display for Nivel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.label())
+        f.write_str(self.etiqueta())
     }
 }
 
-/// One detected signal, with its stable code and the points it contributes.
+/// Una señal detectada: su código, cuántos puntos aporta y por qué se detectó.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Reason {
-    pub code: &'static str,
-    pub points: u32,
-    pub detail: String,
+pub struct Senal {
+    pub codigo: &'static str,
+    pub puntos: u32,
+    pub detalle: String,
 }
 
-/// Result of analyzing one link.
+/// El resultado de analizar un enlace.
 #[derive(Debug, Clone)]
-pub struct Report {
-    /// The link exactly as the user wrote it.
-    pub input: String,
-    /// Normalized host (lowercase, without `www.` and without a trailing dot).
-    pub host: String,
-    pub level: Level,
-    pub score: u32,
-    pub reasons: Vec<Reason>,
+pub struct Informe {
+    /// El enlace tal como lo escribió la persona.
+    pub url: String,
+    /// El dominio normalizado (minúsculas, sin `www.` ni punto final).
+    pub dominio: String,
+    pub nivel: Nivel,
+    pub puntos: u32,
+    pub senales: Vec<Senal>,
 }
 
-impl Report {
-    /// Summary line: level, score and how many signals were found.
-    pub fn summary(&self) -> String {
-        let plural = if self.reasons.len() == 1 { "" } else { "es" };
-        let points = if self.score == 1 { "pt" } else { "pts" };
+impl Informe {
+    /// Una línea corta: nivel, puntos y cuántas señales se encontraron.
+    pub fn resumen(&self) -> String {
+        let plural = if self.senales.len() == 1 { "" } else { "es" };
+        let puntos = if self.puntos == 1 { "punto" } else { "puntos" };
         format!(
             "{} ({} {}, {} señal{})",
-            self.level.label(),
-            self.score,
-            points,
-            self.reasons.len(),
+            self.nivel.etiqueta(),
+            self.puntos,
+            puntos,
+            self.senales.len(),
             plural
         )
     }
 
-    /// Hand written JSON serialization (no serde).
-    pub fn to_json(&self) -> String {
-        let reasons: Vec<String> = self
-            .reasons
+    /// Convierte el informe en JSON. Se hace a mano para no usar ninguna biblioteca.
+    pub fn a_json(&self) -> String {
+        let senales: Vec<String> = self
+            .senales
             .iter()
-            .map(|r| {
+            .map(|senal| {
                 format!(
-                    "{{\"code\":{},\"points\":{},\"detail\":{}}}",
-                    json_string(r.code),
-                    r.points,
-                    json_string(&r.detail)
+                    "{{\"codigo\":{},\"puntos\":{},\"detalle\":{}}}",
+                    cadena_json(senal.codigo),
+                    senal.puntos,
+                    cadena_json(&senal.detalle)
                 )
             })
             .collect();
         format!(
-            "{{\"url\":{},\"host\":{},\"level\":{},\"score\":{},\"reasons\":[{}]}}",
-            json_string(&self.input),
-            json_string(&self.host),
-            json_string(self.level.token()),
-            self.score,
-            reasons.join(",")
+            "{{\"url\":{},\"dominio\":{},\"nivel\":{},\"puntos\":{},\"senales\":[{}]}}",
+            cadena_json(&self.url),
+            cadena_json(&self.dominio),
+            cadena_json(self.nivel.token()),
+            self.puntos,
+            senales.join(",")
         )
     }
 }
 
-/// Escapes a string into a JSON literal.
-pub fn json_string(value: &str) -> String {
-    let mut out = String::with_capacity(value.len() + 2);
-    out.push('"');
-    for ch in value.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
+/// Convierte un texto en un literal de JSON válido (con comillas).
+pub fn cadena_json(valor: &str) -> String {
+    let mut salida = String::with_capacity(valor.len() + 2);
+    salida.push('"');
+    for caracter in valor.chars() {
+        match caracter {
+            '"' => salida.push_str("\\\""),
+            '\\' => salida.push_str("\\\\"),
+            '\n' => salida.push_str("\\n"),
+            '\r' => salida.push_str("\\r"),
+            '\t' => salida.push_str("\\t"),
+            c if (c as u32) < 0x20 => salida.push_str(&format!("\\u{:04x}", c as u32)),
+            c => salida.push(c),
         }
     }
-    out.push('"');
-    out
+    salida.push('"');
+    salida
 }
 
-/// A link taken apart by hand: the `url` crate is not used so the build needs no network.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedUrl {
-    pub scheme: String,
-    pub userinfo: Option<String>,
-    pub host: String,
-    pub port: Option<String>,
-    pub path: String,
-    pub query: String,
-}
-
-impl ParsedUrl {
-    /// Splits a URL into its parts. A missing scheme is assumed to be `http`.
-    pub fn parse(input: &str) -> ParsedUrl {
-        let trimmed = input.trim();
-        let (scheme, rest) = match trimmed.find("://") {
-            Some(i) => (trimmed[..i].to_ascii_lowercase(), &trimmed[i + 3..]),
-            None => ("http".to_string(), trimmed),
-        };
-
-        let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-        let authority = &rest[..authority_end];
-        let tail = &rest[authority_end..];
-
-        let (userinfo, host_port) = match authority.rsplit_once('@') {
-            Some((user, host)) => (Some(user.to_string()), host),
-            None => (None, authority),
-        };
-
-        let (host_raw, port) = split_host_port(host_port);
-        let host = normalize_host(&host_raw);
-
-        let without_fragment = tail.split('#').next().unwrap_or("");
-        let (path, query) = match without_fragment.split_once('?') {
-            Some((p, q)) => (p.to_string(), q.to_string()),
-            None => (without_fragment.to_string(), String::new()),
-        };
-
-        ParsedUrl {
-            scheme,
-            userinfo,
-            host,
-            port,
-            path,
-            query,
-        }
-    }
-}
-
-fn split_host_port(host_port: &str) -> (String, Option<String>) {
-    if let Some(rest) = host_port.strip_prefix('[') {
-        // IPv6 host in brackets: [::1]:2222
-        return match rest.split_once(']') {
-            Some((host, after)) => {
-                let port = after.strip_prefix(':').map(|p| p.to_string());
-                (format!("[{}]", host), port)
-            }
-            None => (host_port.to_string(), None),
-        };
-    }
-    match host_port.split_once(':') {
-        Some((host, port)) => (host.to_string(), Some(port.to_string())),
-        None => (host_port.to_string(), None),
-    }
-}
-
-/// Lowercase, without a trailing dot and without the `www.` prefix.
-pub fn normalize_host(host: &str) -> String {
-    let mut value = host.trim().to_ascii_lowercase();
-    if value.ends_with('.') {
-        value.pop();
-    }
-    if let Some(rest) = value.strip_prefix("www.") {
-        value = rest.to_string();
-    }
-    value
-}
-
-/// Known brands and their official domain.
-pub const BRANDS: &[(&str, &str)] = &[
+/// Marcas conocidas y su sitio web oficial.
+pub const MARCAS: &[(&str, &str)] = &[
     ("paypal", "paypal.com"),
     ("google", "google.com"),
     ("facebook", "facebook.com"),
     ("whatsapp", "whatsapp.com"),
     ("microsoft", "microsoft.com"),
-    ("bancounion", "bancounion.com.bo"),
+    ("amazon", "amazon.com"),
+    ("apple", "apple.com"),
+    // Bancos de Bolivia
+    ("bcp", "bcp.com.bo"),
     ("bnb", "bnb.com.bo"),
+    ("bancounion", "bancounion.com.bo"),
+    ("mercantilsantacruz", "mercantilsantacruz.com.bo"),
+    ("bancoestado", "bancoestado.com.bo"),
 ];
 
-/// Shorteners that hide the real destination.
-pub const SHORTENERS: &[&str] = &[
+/// Servicios que acortan el enlace y esconden el destino real.
+pub const ACORTADORES: &[&str] = &[
     "bit.ly",
     "tinyurl.com",
     "t.co",
@@ -242,13 +184,13 @@ pub const SHORTENERS: &[&str] = &[
     "rebrand.ly",
 ];
 
-/// Endings that are cheap and therefore common in fraud.
-pub const SUSPICIOUS_TLDS: &[&str] = &[
+/// Terminaciones baratas, muy usadas por los estafadores.
+pub const TERMINACIONES_SOSPECHOSAS: &[&str] = &[
     ".xyz", ".top", ".tk", ".click", ".zip", ".icu", ".buzz", ".link", ".work", ".rest",
 ];
 
-/// Bait words used to hook the victim.
-pub const HOOK_WORDS: &[&str] = &[
+/// Palabras de gancho: sirven para que la persona haga clic sin pensar.
+pub const PALABRAS_GANCHO: &[&str] = &[
     "login",
     "signin",
     "sign-in",
@@ -262,6 +204,7 @@ pub const HOOK_WORDS: &[&str] = &[
     "confirm",
     "confirmar",
     "banco",
+    "bancario",
     "clave",
     "password",
     "contrasena",
@@ -271,418 +214,874 @@ pub const HOOK_WORDS: &[&str] = &[
     "recovery",
     "recuperar",
     "bloqueo",
+    "suspendido",
     "suspended",
     "unusual",
+    "urgente",
+    "inmediato",
+    "premio",
+    "ganador",
 ];
 
-/// Analyzes a link and returns its verdict.
-pub fn analyze(input: &str) -> Report {
-    let parsed = ParsedUrl::parse(input);
-    let host = parsed.host.clone();
-    let host_lower = host.to_ascii_lowercase();
-    let url_lower =
-        format!("{} {} {}", parsed.host, parsed.path, parsed.query).to_ascii_lowercase();
-    let is_ip = is_ip_literal(&host);
+/// El enlace, desarmado en partes.
+///
+/// No se usa ninguna biblioteca de URLs: el desarmado se hace a mano para que el
+/// programa no dependa de nada externo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UrlAnalizada {
+    pub esquema: String,
+    /// Texto antes del «@», si lo hay (es la parte que engaña a la persona).
+    pub usuario: Option<String>,
+    pub dominio: String,
+    pub puerto: Option<String>,
+    pub ruta: String,
+    pub consulta: String,
+}
 
-    let mut reasons: Vec<Reason> = Vec::new();
+impl UrlAnalizada {
+    /// Desarma el enlace en sus partes.
+    ///
+    /// Se imitan tres manías de los navegadores, porque si no el analizador vería un
+    /// dominio distinto al que realmente abriría el navegador:
+    ///
+    /// 1. Se borran los tabuladores y saltos de línea (el navegador los elimina).
+    /// 2. Las barras invertidas `\` cuentan como barras en `http` y `https`.
+    /// 3. Las barras de más después de `://` se ignoran (`http:///sitio` es `sitio`).
+    pub fn parsear(entrada: &str) -> UrlAnalizada {
+        let limpio: String = entrada
+            .trim()
+            .chars()
+            .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+            .collect();
 
-    if parsed.scheme != "https" {
-        reasons.push(Reason {
-            code: "no_https",
-            points: 1,
-            detail: "No usa HTTPS: el tráfico puede interceptarse".to_string(),
-        });
-    }
+        let (esquema, resto_original) = match limpio.find("://") {
+            Some(posicion) => (
+                limpio[..posicion].to_ascii_lowercase(),
+                limpio[posicion + 3..].to_string(),
+            ),
+            None => ("http".to_string(), limpio.clone()),
+        };
 
-    if is_ip {
-        reasons.push(Reason {
-            code: "ip_host",
-            points: 2,
-            detail: "Usa una dirección IP en vez de un dominio con nombre".to_string(),
-        });
-    }
-
-    if parsed.userinfo.is_some() {
-        reasons.push(Reason {
-            code: "userinfo",
-            points: 2,
-            detail: "Contiene «@»: el dominio real queda escondido detrás".to_string(),
-        });
-    }
-
-    if !is_ip && label_count(&host_lower) >= 4 {
-        reasons.push(Reason {
-            code: "deep_subdomain",
-            points: 1,
-            detail: "Demasiados subdominios: el dominio real está al final".to_string(),
-        });
-    }
-
-    if host_lower.contains("xn--") {
-        reasons.push(Reason {
-            code: "punycode",
-            points: 2,
-            detail: "Punycode: posibles letras camufladas".to_string(),
-        });
-    }
-
-    if is_shortener(&host_lower) {
-        reasons.push(Reason {
-            code: "shortener",
-            points: 2,
-            detail: "Link acortado: el destino real está oculto".to_string(),
-        });
-    }
-
-    if has_suspicious_tld(&host_lower) {
-        reasons.push(Reason {
-            code: "suspicious_tld",
-            points: 1,
-            detail: "Terminación poco confiable".to_string(),
-        });
-    }
-
-    if !is_ip && hyphen_count(&host_lower) >= 3 {
-        reasons.push(Reason {
-            code: "hyphen_chain",
-            points: 1,
-            detail: "Muchos guiones en el dominio: patrón habitual de suplantación".to_string(),
-        });
-    }
-
-    if let Some(word) = first_hook_word(&url_lower) {
-        reasons.push(Reason {
-            code: "hook_words",
-            points: 1,
-            detail: format!("Palabra de gancho: «{word}»"),
-        });
-    }
-
-    for (name, official) in BRANDS {
-        if host_lower == *official || host_lower.ends_with(&format!(".{official}")) {
-            break; // Official site: no brand rule applies.
+        // Solo en http y https la barra invertida se comporta como una barra normal,
+        // y las barras de más se ignoran: http:///sitio es el sitio "sitio".
+        let especial = esquema == "http" || esquema == "https";
+        let mut resto = if especial {
+            resto_original.replace('\\', "/")
+        } else {
+            resto_original
+        };
+        if especial {
+            resto = resto.trim_start_matches('/').to_string();
         }
-        if uses_brand_token(&host_lower, name) {
-            reasons.push(Reason {
-                code: "brand_impersonation",
-                points: 3,
-                detail: format!("Usa el nombre de {name} pero no es el sitio oficial ({official})"),
-            });
-            break;
-        }
-        if leet_normalize(&host_lower).contains(name) {
-            reasons.push(Reason {
-                code: "typosquat",
-                points: 3,
-                detail: format!("Imita a {official} (typosquatting)"),
-            });
-            break;
-        }
-    }
+        let resto = resto.as_str();
 
-    let score: u32 = reasons.iter().map(|r| r.points).sum();
-    let level = Level::from_score(score);
+        let fin_de_autoridad = resto.find(['/', '?', '#']).unwrap_or(resto.len());
+        let autoridad = &resto[..fin_de_autoridad];
+        let cola = &resto[fin_de_autoridad..];
 
-    Report {
-        input: input.trim().to_string(),
-        host,
-        level,
-        score,
-        reasons,
+        // El «@» puede venir escrito tal cual o codificado como %40.
+        let minusculas = autoridad.to_ascii_lowercase();
+        let posicion_arroba = minusculas.rfind('@');
+        let posicion_codificado = minusculas.rfind("%40");
+        let corte = match (posicion_arroba, posicion_codificado) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        };
+
+        let (usuario, parte_dominio) = match corte {
+            Some(posicion) => {
+                let despues = if minusculas[posicion..].starts_with("%40") {
+                    posicion + 3
+                } else {
+                    posicion + 1
+                };
+                (
+                    Some(autoridad[..posicion].to_string()),
+                    &autoridad[despues..],
+                )
+            }
+            None => (None, autoridad),
+        };
+
+        let (dominio_crudo, puerto) = separar_dominio_y_puerto(parte_dominio);
+        let dominio = normalizar_dominio(&dominio_crudo);
+
+        let sin_fragmento = cola.split('#').next().unwrap_or("");
+        let (ruta, consulta) = match sin_fragmento.split_once('?') {
+            Some((r, c)) => (r.to_string(), c.to_string()),
+            None => (sin_fragmento.to_string(), String::new()),
+        };
+
+        UrlAnalizada {
+            esquema,
+            usuario,
+            dominio,
+            puerto,
+            ruta,
+            consulta,
+        }
     }
 }
 
-/// `true` when the host is a literal IPv4 or IPv6 address.
-pub fn is_ip_literal(host: &str) -> bool {
-    let bare = host.trim_start_matches('[').trim_end_matches(']');
-    if bare.contains(':') {
+/// Separa el dominio del puerto, teniendo en cuenta las IP entre corchetes.
+fn separar_dominio_y_puerto(parte: &str) -> (String, Option<String>) {
+    if let Some(resto) = parte.strip_prefix('[') {
+        // Dirección IPv6 entre corchetes: [::1]:2222
+        return match resto.split_once(']') {
+            Some((dominio, despues)) => {
+                let puerto = despues.strip_prefix(':').map(|p| p.to_string());
+                (format!("[{}]", dominio), puerto)
+            }
+            None => (parte.to_string(), None),
+        };
+    }
+    match parte.split_once(':') {
+        Some((dominio, puerto)) => (dominio.to_string(), Some(puerto.to_string())),
+        None => (parte.to_string(), None),
+    }
+}
+
+/// Deja el dominio como lo vería una persona: minúsculas, sin punto final y sin `www.`.
+pub fn normalizar_dominio(dominio: &str) -> String {
+    let mut valor = dominio.trim().to_ascii_lowercase();
+    while valor.ends_with('.') {
+        valor.pop();
+    }
+    if let Some(resto) = valor.strip_prefix("www.") {
+        valor = resto.to_string();
+    }
+    valor
+}
+
+/// Analiza un enlace y devuelve su veredicto.
+pub fn analizar(entrada: &str) -> Informe {
+    let url = UrlAnalizada::parsear(entrada);
+    let dominio = url.dominio.clone();
+    let dominio_minusculas = dominio.to_ascii_lowercase();
+    let texto_minusculas =
+        format!("{} {} {}", url.dominio, url.ruta, url.consulta).to_ascii_lowercase();
+    let es_ip = es_direccion_ip(&dominio);
+
+    let mut senales: Vec<Senal> = Vec::new();
+
+    // 1. Sin HTTPS el tráfico se puede interceptar por el camino.
+    if url.esquema != "https" {
+        senales.push(Senal {
+            codigo: "sin_https",
+            puntos: 1,
+            detalle: "No usa HTTPS: el tráfico puede interceptarse".to_string(),
+        });
+    }
+
+    // 2. Una IP cruda en lugar de un dominio con nombre.
+    if es_ip {
+        senales.push(Senal {
+            codigo: "ip_dominio",
+            puntos: 2,
+            detalle: "Usa una dirección IP en vez de un dominio con nombre".to_string(),
+        });
+    }
+
+    // 3. El «@» esconde el dominio real detrás de uno falso.
+    if url.usuario.is_some() {
+        senales.push(Senal {
+            codigo: "usuario_oculto",
+            puntos: 2,
+            detalle: "Contiene «@»: el dominio real queda escondido detrás".to_string(),
+        });
+    }
+
+    // 4. Muchos subdominios: el dominio de verdad está al final de la cadena.
+    if !es_ip && cantidad_etiquetas(&dominio_minusculas) >= 4 {
+        senales.push(Senal {
+            codigo: "subdominios",
+            puntos: 1,
+            detalle: "Demasiados subdominios: el dominio real está al final".to_string(),
+        });
+    }
+
+    // 5. Letras camufladas: tanto la forma codificada (xn--) como el Unicode crudo.
+    if dominio_minusculas.contains("xn--") {
+        senales.push(Senal {
+            codigo: "letras_camufladas",
+            puntos: 2,
+            detalle: "Punycode: el dominio usa letras codificadas".to_string(),
+        });
+    } else if !dominio.is_ascii() {
+        senales.push(Senal {
+            codigo: "letras_camufladas",
+            puntos: 2,
+            detalle: "Contiene letras no latinas: pueden imitar a las letras verdaderas"
+                .to_string(),
+        });
+    }
+
+    // 6. Acortadores: esconden a dónde lleva el enlace de verdad.
+    if es_acortador(&dominio_minusculas) {
+        senales.push(Senal {
+            codigo: "acortador",
+            puntos: 2,
+            detalle: "Link acortado: el destino real está oculto".to_string(),
+        });
+    }
+
+    // 7. Terminaciones baratas.
+    if tiene_terminacion_sospechosa(&dominio_minusculas) {
+        senales.push(Senal {
+            codigo: "terminacion_rara",
+            puntos: 1,
+            detalle: "Terminación poco confiable".to_string(),
+        });
+    }
+
+    // 8. Muchos guiones: patrón clásico de suplantación.
+    if !es_ip && cantidad_guiones(&dominio_minusculas) >= 3 {
+        senales.push(Senal {
+            codigo: "guiones",
+            puntos: 1,
+            detalle: "Muchos guiones en el dominio: patrón habitual de suplantación".to_string(),
+        });
+    }
+
+    // 9. Palabras de gancho en el dominio, la ruta o la consulta.
+    if let Some(palabra) = primera_palabra_gancho(&texto_minusculas) {
+        senales.push(Senal {
+            codigo: "palabra_gancho",
+            puntos: 1,
+            detalle: format!("Palabra de gancho: «{palabra}»"),
+        });
+    }
+
+    // 10 y 11. Marcas imitadas y typosquatting.
+    for (nombre, oficial) in MARCAS {
+        if dominio_minusculas == *oficial || dominio_minusculas.ends_with(&format!(".{oficial}")) {
+            break; // Es el sitio oficial: no se evalúa ninguna marca.
+        }
+        if usa_nombre_de_marca(&dominio_minusculas, nombre) {
+            senales.push(Senal {
+                codigo: "marca_falsa",
+                puntos: 3,
+                detalle: format!(
+                    "Usa el nombre de {nombre} pero no es el sitio oficial ({oficial})"
+                ),
+            });
+            break;
+        }
+        if imita_una_marca(&dominio_minusculas, nombre) {
+            senales.push(Senal {
+                codigo: "typosquatting",
+                puntos: 3,
+                detalle: format!("Imita a {oficial} con una diferencia mínima"),
+            });
+            break;
+        }
+    }
+
+    let puntos: u32 = senales.iter().map(|senal| senal.puntos).sum();
+    let nivel = Nivel::desde_puntos(puntos);
+
+    Informe {
+        url: entrada.trim().to_string(),
+        dominio,
+        nivel,
+        puntos,
+        senales,
+    }
+}
+
+/// ¿El host es una dirección IP?
+///
+/// Cubre las cuatro notaciones que aceptan los navegadores: IPv4 con puntos (`1.2.3.4`),
+/// IPv6 (`::1`), decimal (`2130706433`), hexadecimal (`0x7f000001`) y octal (`017700000001`).
+pub fn es_direccion_ip(dominio: &str) -> bool {
+    let limpio = dominio.trim_start_matches('[').trim_end_matches(']');
+    if limpio.contains(':') {
         return true; // IPv6
     }
-    let parts: Vec<&str> = bare.split('.').collect();
-    parts.len() == 4
-        && parts
+
+    // IPv4 con puntos: cuatro números entre 0 y 255.
+    let partes: Vec<&str> = limpio.split('.').collect();
+    if partes.len() == 4
+        && partes
             .iter()
-            .all(|p| !p.is_empty() && p.parse::<u8>().is_ok())
+            .all(|parte| !parte.is_empty() && parte.parse::<u8>().is_ok())
+    {
+        return true;
+    }
+
+    // Notaciones de un solo número: decimal, hexadecimal u octal.
+    if limpio.is_empty() || !limpio.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return false;
+    }
+    if let Some(resto) = limpio
+        .strip_prefix("0x")
+        .or_else(|| limpio.strip_prefix("0X"))
+    {
+        return !resto.is_empty() && resto.chars().all(|c| c.is_ascii_hexdigit());
+    }
+    if limpio.len() > 1 && limpio.starts_with('0') {
+        return limpio[1..].chars().all(|c| ('0'..='7').contains(&c));
+    }
+    limpio.chars().all(|c| c.is_ascii_digit())
 }
 
-/// Number of domain labels (`a.b.c.d` is 4).
-pub fn label_count(host: &str) -> usize {
-    host.split('.').filter(|p| !p.is_empty()).count()
+/// Cuántas etiquetas tiene el dominio (`a.b.c.d` son cuatro).
+pub fn cantidad_etiquetas(dominio: &str) -> usize {
+    dominio.split('.').filter(|parte| !parte.is_empty()).count()
 }
 
-/// Number of hyphens in the host.
-pub fn hyphen_count(host: &str) -> usize {
-    host.matches('-').count()
+/// Cuántos guiones tiene el dominio, sin contar los de `xn--` (que son del código).
+pub fn cantidad_guiones(dominio: &str) -> usize {
+    dominio
+        .split('.')
+        .filter(|etiqueta| !etiqueta.starts_with("xn--"))
+        .map(|etiqueta| etiqueta.matches('-').count())
+        .sum()
 }
 
-/// `true` when the host is a known shortener.
-pub fn is_shortener(host: &str) -> bool {
-    SHORTENERS
+/// ¿El dominio es (o termina siendo) un acortador conocido?
+pub fn es_acortador(dominio: &str) -> bool {
+    ACORTADORES.contains(&dominio)
+}
+
+/// ¿El dominio termina en una terminación poco confiable?
+pub fn tiene_terminacion_sospechosa(dominio: &str) -> bool {
+    TERMINACIONES_SOSPECHOSAS
         .iter()
-        .any(|s| host == *s || host.ends_with(&format!("/{s}")))
+        .any(|terminacion| dominio.ends_with(terminacion))
 }
 
-/// `true` when the domain ends with an untrustworthy ending.
-pub fn has_suspicious_tld(host: &str) -> bool {
-    SUSPICIOUS_TLDS.iter().any(|tld| host.ends_with(tld))
+/// Primera palabra de gancho encontrada (el texto llega en minúsculas).
+pub fn primera_palabra_gancho(texto: &str) -> Option<&'static str> {
+    PALABRAS_GANCHO
+        .iter()
+        .find(|palabra| texto.contains(*palabra))
+        .copied()
 }
 
-/// First bait word found in the text (already lowercased).
-pub fn first_hook_word(text: &str) -> Option<&'static str> {
-    HOOK_WORDS.iter().find(|word| text.contains(*word)).copied()
+/// La «clave» de una etiqueta: sin guiones y en minúsculas.
+///
+/// Sirve para comparar nombres: `banco-union` y `bancounion` son la misma clave.
+fn clave_de_marca(etiqueta: &str) -> String {
+    etiqueta.replace('-', "").to_ascii_lowercase()
 }
 
-/// `true` when the host uses the brand name in one of its labels.
-pub fn uses_brand_token(host: &str, name: &str) -> bool {
-    host.split('.')
-        .any(|label| label == name || label.starts_with(name))
+/// ¿El dominio usa el nombre de una marca en alguna de sus etiquetas?
+pub fn usa_nombre_de_marca(dominio: &str, nombre: &str) -> bool {
+    let marca = clave_de_marca(nombre);
+    dominio.split('.').any(|etiqueta| {
+        let clave = clave_de_marca(etiqueta);
+        clave == marca || (clave.len() > marca.len() && clave.contains(&marca))
+    })
 }
 
-/// Turns imitated digits into letters: `paypa1` -> `paypal`.
-pub fn leet_normalize(host: &str) -> String {
-    host.chars()
-        .map(|c| match c {
+/// Normaliza los homoglifos más comunes: letras que se parecen a otras.
+///
+/// `rn` se lee como `m`, `vv` como `w`, y los dígitos `0 1 3 4 5 7` imitan a
+/// `o l e a s t`.
+pub fn normalizar_homoglifos(texto: &str) -> String {
+    let mut salida = String::with_capacity(texto.len());
+    let caracteres: Vec<char> = texto.chars().collect();
+    let mut indice = 0;
+    while indice < caracteres.len() {
+        let actual = caracteres[indice];
+        let siguiente = caracteres.get(indice + 1).copied();
+        match (actual, siguiente) {
+            ('r', Some('n')) => {
+                salida.push('m');
+                indice += 2;
+                continue;
+            }
+            ('v', Some('v')) => {
+                salida.push('w');
+                indice += 2;
+                continue;
+            }
+            _ => {}
+        }
+        salida.push(match actual {
             '0' => 'o',
             '1' => 'l',
             '3' => 'e',
             '4' => 'a',
             '5' => 's',
             '7' => 't',
-            other => other,
-        })
-        .collect()
+            otro => otro,
+        });
+        indice += 1;
+    }
+    salida
 }
 
-/// A demonstration link with its expected verdict and the note explained to the audience.
-pub struct DemoCase {
+/// Distancia entre dos textos: cuántos cambios hay que hacer para pasar de uno a otro.
+///
+/// Es la distancia de Damerau-Levenshtein: cuenta como un solo cambio el intercambio
+/// de dos letras vecinas (`paypla` → `paypal`), que con la distancia simple serían dos.
+pub fn distancia_levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    if a.is_empty() {
+        return b.len();
+    }
+    if b.is_empty() {
+        return a.len();
+    }
+
+    let mut anterior_anterior: Vec<usize> = vec![0; b.len() + 1];
+    let mut anterior: Vec<usize> = (0..=b.len()).collect();
+    let mut actual: Vec<usize> = vec![0; b.len() + 1];
+
+    for (i, &caracter_a) in a.iter().enumerate() {
+        actual[0] = i + 1;
+        for (j, &caracter_b) in b.iter().enumerate() {
+            let costo = usize::from(caracter_a != caracter_b);
+            let mut valor = (actual[j] + 1)
+                .min(anterior[j + 1] + 1)
+                .min(anterior[j] + costo);
+            // Intercambio de dos letras vecinas: cuenta como un solo cambio.
+            if i > 0 && j > 0 && caracter_a == b[j - 1] && a[i - 1] == caracter_b {
+                valor = valor.min(anterior_anterior[j - 1] + 1);
+            }
+            actual[j + 1] = valor;
+        }
+        anterior_anterior = anterior;
+        anterior = actual.clone();
+    }
+
+    anterior[b.len()]
+}
+
+/// ¿El dominio imita a una marca con una diferencia mínima?
+///
+/// Se comparan la primera etiqueta del dominio con el nombre de la marca, después de
+/// normalizar los homoglifos. Si la diferencia es de un solo cambio (o none), es un
+/// typosquatting.
+pub fn imita_una_marca(dominio: &str, nombre: &str) -> bool {
+    let Some(primera) = dominio.split('.').next() else {
+        return false;
+    };
+    if primera.is_empty() {
+        return false;
+    }
+    let normalizado = normalizar_homoglifos(&clave_de_marca(primera));
+    let marca = normalizar_homoglifos(&clave_de_marca(nombre));
+    if normalizado.is_empty() || marca.is_empty() {
+        return false;
+    }
+    // Una diferencia mínima: o es la misma marca con una letra cambiada, de más o de menos.
+    distancia_levenshtein(&normalizado, &marca) <= 1
+}
+
+/// Un enlace de la demostración con su veredicto esperado y la nota que se explica.
+pub struct CasoDemo {
     pub url: &'static str,
-    pub expected: Level,
-    pub note: &'static str,
+    pub esperado: Nivel,
+    pub nota: &'static str,
 }
 
-/// The five links of the demonstration.
-pub const DEMO_CASES: &[DemoCase] = &[
-    DemoCase {
+/// Los cinco enlaces de la demostración.
+pub const CASOS_DEMO: &[CasoDemo] = &[
+    CasoDemo {
         url: "http://paypa1.com/login/verify",
-        expected: Level::High,
-        note: "El «1» imita la «l» de PayPal: typosquatting.",
+        esperado: Nivel::Alto,
+        nota: "El «1» imita la «l» de PayPal: typosquatting.",
     },
-    DemoCase {
+    CasoDemo {
         url: "http://paypal.secure-verify-login.com/account",
-        expected: Level::High,
-        note: "Usa el nombre de PayPal pero el dominio real termina en .com.",
+        esperado: Nivel::Alto,
+        nota: "Usa el nombre de PayPal pero el dominio real termina en .com.",
     },
-    DemoCase {
+    CasoDemo {
         url: "http://192.168.56.101/wp-login.php",
-        expected: Level::Medium,
-        note: "Login de WordPress servido desde una IP cruda.",
+        esperado: Nivel::Medio,
+        nota: "Login de WordPress servido desde una IP cruda.",
     },
-    DemoCase {
+    CasoDemo {
         url: "https://www.bancounion.com.bo/verificacion-clave",
-        expected: Level::Low,
-        note: "Sitio real: el analizador lo marca por las palabras de la ruta (falso positivo).",
+        esperado: Nivel::Bajo,
+        nota: "Sitio real: el analizador lo marca por las palabras de la ruta (falso positivo).",
     },
-    DemoCase {
+    CasoDemo {
         url: "https://www.google.com",
-        expected: Level::Low,
-        note: "Sitio legítimo: ninguna señal sospechosa.",
+        esperado: Nivel::Bajo,
+        nota: "Sitio legítimo: ninguna señal sospechosa.",
     },
 ];
 
-/// The browser demo compiles this library to WebAssembly; the boundary lives in `wasm.rs`.
-#[cfg(target_arch = "wasm32")]
-mod wasm;
-
 #[cfg(test)]
-mod tests {
+mod pruebas {
     use super::*;
 
-    fn codes(report: &Report) -> Vec<&str> {
-        report.reasons.iter().map(|r| r.code).collect()
+    fn codigos(informe: &Informe) -> Vec<&str> {
+        informe.senales.iter().map(|senal| senal.codigo).collect()
     }
 
-    fn points_of(report: &Report, code: &str) -> u32 {
-        report
-            .reasons
+    fn puntos_de(informe: &Informe, codigo: &str) -> u32 {
+        informe
+            .senales
             .iter()
-            .find(|r| r.code == code)
-            .unwrap_or_else(|| panic!("falta la señal {code}"))
-            .points
+            .find(|senal| senal.codigo == codigo)
+            .unwrap_or_else(|| panic!("falta la señal {codigo}"))
+            .puntos
+    }
+
+    // ---------------------------------------------------------------- reglas
+
+    #[test]
+    fn detecta_que_no_usa_https() {
+        let informe = analizar("http://ejemplo.com");
+        assert_eq!(informe.senales[0].codigo, "sin_https");
+        assert_eq!(informe.senales[0].puntos, 1);
     }
 
     #[test]
-    fn detects_missing_https() {
-        let report = analyze("http://ejemplo.com");
-        assert_eq!(report.reasons[0].code, "no_https");
-        assert_eq!(report.reasons[0].points, 1);
+    fn con_https_no_aparece_la_senal_de_https() {
+        let informe = analizar("https://ejemplo.com");
+        assert!(!codigos(&informe).contains(&"sin_https"));
     }
 
     #[test]
-    fn https_has_no_https_reason() {
-        let report = analyze("https://ejemplo.com");
-        assert!(!codes(&report).contains(&"no_https"));
+    fn detecta_ip_con_puntos() {
+        let informe = analizar("https://192.168.1.10/login");
+        assert!(codigos(&informe).contains(&"ip_dominio"));
+        assert_eq!(puntos_de(&informe, "ip_dominio"), 2);
     }
 
     #[test]
-    fn detects_ip_host() {
-        let report = analyze("https://192.168.1.10/login");
-        assert!(codes(&report).contains(&"ip_host"));
-        assert_eq!(points_of(&report, "ip_host"), 2);
+    fn detecta_ip_en_decimal() {
+        let informe = analizar("https://2130706433/login");
+        assert!(codigos(&informe).contains(&"ip_dominio"));
     }
 
     #[test]
-    fn ip_host_is_not_deep_subdomain() {
-        let report = analyze("https://192.168.1.10/");
-        assert!(!codes(&report).contains(&"deep_subdomain"));
+    fn detecta_ip_en_hexadecimal() {
+        let informe = analizar("https://0x7f000001/login");
+        assert!(codigos(&informe).contains(&"ip_dominio"));
     }
 
     #[test]
-    fn detects_userinfo_trick() {
-        let report = analyze("http://banco.com@banco-falso.com/");
-        assert!(codes(&report).contains(&"userinfo"));
-        assert_eq!(points_of(&report, "userinfo"), 2);
+    fn detecta_ip_en_octal() {
+        let informe = analizar("https://017700000001/login");
+        assert!(codigos(&informe).contains(&"ip_dominio"));
     }
 
     #[test]
-    fn userinfo_keeps_the_real_host() {
-        let parsed = ParsedUrl::parse("http://banco.com@banco-falso.com/x");
-        assert_eq!(parsed.userinfo.as_deref(), Some("banco.com"));
-        assert_eq!(parsed.host, "banco-falso.com");
+    fn detecta_ip_en_ipv6() {
+        let informe = analizar("https://[::1]/login");
+        assert!(codigos(&informe).contains(&"ip_dominio"));
     }
 
     #[test]
-    fn detects_deep_subdomain() {
-        let report = analyze("https://login.banco.com.seguro.servidor.com/");
-        assert!(codes(&report).contains(&"deep_subdomain"));
+    fn una_ip_no_cuenta_como_subdominios() {
+        let informe = analizar("https://192.168.1.10/");
+        assert!(!codigos(&informe).contains(&"subdominios"));
     }
 
     #[test]
-    fn detects_punycode() {
-        let report = analyze("https://xn--80ak6aa92e.com/");
-        assert!(codes(&report).contains(&"punycode"));
-        assert_eq!(points_of(&report, "punycode"), 2);
+    fn detecta_el_arroba_que_esconde_el_destino() {
+        let informe = analizar("http://banco.com@banco-falso.com/");
+        assert!(codigos(&informe).contains(&"usuario_oculto"));
+        assert_eq!(puntos_de(&informe, "usuario_oculto"), 2);
     }
 
     #[test]
-    fn detects_shortener() {
-        let report = analyze("http://bit.ly/3xAbCdE");
-        assert!(codes(&report).contains(&"shortener"));
-        assert_eq!(points_of(&report, "shortener"), 2);
+    fn detecta_el_arroba_codificado() {
+        let informe = analizar("http://banco.com%40banco-falso.com/");
+        assert!(codigos(&informe).contains(&"usuario_oculto"));
+        assert_eq!(informe.dominio, "banco-falso.com");
     }
 
     #[test]
-    fn detects_suspicious_tld() {
-        let report = analyze("https://banco-verificacion.xyz/");
-        assert!(codes(&report).contains(&"suspicious_tld"));
+    fn el_arroba_no_esconde_el_dominio_real() {
+        let url = UrlAnalizada::parsear("http://banco.com@banco-falso.com/x");
+        assert_eq!(url.usuario.as_deref(), Some("banco.com"));
+        assert_eq!(url.dominio, "banco-falso.com");
     }
 
     #[test]
-    fn detects_hyphen_chain() {
-        let report = analyze("https://banco-seguro-verificacion-cuenta.com/");
-        assert!(codes(&report).contains(&"hyphen_chain"));
+    fn detecta_demasiados_subdominios() {
+        let informe = analizar("https://login.banco.com.seguro.servidor.com/");
+        assert!(codigos(&informe).contains(&"subdominios"));
     }
 
     #[test]
-    fn detects_hook_word() {
-        let report = analyze("https://sitio-real.com/login");
-        assert!(codes(&report).contains(&"hook_words"));
+    fn detecta_punycode() {
+        let informe = analizar("https://xn--80ak6aa92e.com/");
+        assert!(codigos(&informe).contains(&"letras_camufladas"));
     }
 
     #[test]
-    fn detects_brand_impersonation() {
-        let report = analyze("http://paypal.secure-verify-login.com/account");
-        assert!(codes(&report).contains(&"brand_impersonation"));
-        assert_eq!(points_of(&report, "brand_impersonation"), 3);
+    fn detecta_letras_no_latinas() {
+        let informe = analizar("https://p\u{0430}ypal.com/");
+        assert!(codigos(&informe).contains(&"letras_camufladas"));
     }
 
     #[test]
-    fn detects_typosquat() {
-        let report = analyze("http://paypa1.com/login/verify");
-        assert!(codes(&report).contains(&"typosquat"));
-        assert_eq!(points_of(&report, "typosquat"), 3);
+    fn detecta_acortador() {
+        let informe = analizar("http://bit.ly/3xAbCdE");
+        assert!(codigos(&informe).contains(&"acortador"));
+        assert_eq!(puntos_de(&informe, "acortador"), 2);
     }
 
     #[test]
-    fn official_brand_is_clean() {
-        let report = analyze("https://www.paypal.com/");
-        assert!(!codes(&report).contains(&"brand_impersonation"));
-        assert!(!codes(&report).contains(&"typosquat"));
+    fn detecta_terminacion_rara() {
+        let informe = analizar("https://banco-verificacion.xyz/");
+        assert!(codigos(&informe).contains(&"terminacion_rara"));
     }
 
     #[test]
-    fn brand_inside_an_official_domain_is_clean() {
-        let report = analyze("https://www.bancounion.com.bo/");
-        assert!(!codes(&report).contains(&"brand_impersonation"));
-        assert!(!codes(&report).contains(&"typosquat"));
+    fn detecta_muchos_guiones() {
+        let informe = analizar("https://banco-seguro-verificacion-cuenta.com/");
+        assert!(codigos(&informe).contains(&"guiones"));
     }
 
     #[test]
-    fn level_thresholds() {
-        assert_eq!(Level::from_score(0), Level::Low);
-        assert_eq!(Level::from_score(2), Level::Low);
-        assert_eq!(Level::from_score(3), Level::Medium);
-        assert_eq!(Level::from_score(4), Level::Medium);
-        assert_eq!(Level::from_score(5), Level::High);
-        assert_eq!(Level::from_score(9), Level::High);
+    fn los_guiones_del_punycode_no_cuentan() {
+        let informe = analizar("https://xn--pypal-4ve.com/");
+        assert!(!codigos(&informe).contains(&"guiones"));
     }
 
     #[test]
-    fn score_is_the_sum_of_the_signals() {
-        let report = analyze("http://paypa1.com/login/verify");
-        let sum: u32 = report.reasons.iter().map(|r| r.points).sum();
-        assert_eq!(report.score, sum);
-        assert_eq!(report.level, Level::High);
+    fn detecta_palabra_de_gancho() {
+        let informe = analizar("https://sitio-real.com/login");
+        assert!(codigos(&informe).contains(&"palabra_gancho"));
     }
 
     #[test]
-    fn parses_missing_scheme_as_http() {
-        let parsed = ParsedUrl::parse("ejemplo.com/hola");
-        assert_eq!(parsed.scheme, "http");
-        assert_eq!(parsed.host, "ejemplo.com");
-        assert_eq!(parsed.path, "/hola");
+    fn detecta_marca_falsa() {
+        let informe = analizar("http://paypal.secure-verify-login.com/account");
+        assert!(codigos(&informe).contains(&"marca_falsa"));
+        assert_eq!(puntos_de(&informe, "marca_falsa"), 3);
     }
 
     #[test]
-    fn parses_port_and_query() {
-        let parsed = ParsedUrl::parse("http://ejemplo.com:8080/a/b?x=1&y=2");
-        assert_eq!(parsed.port.as_deref(), Some("8080"));
-        assert_eq!(parsed.query, "x=1&y=2");
+    fn la_marca_dentro_de_una_etiqueta_larga_tambien_cuenta() {
+        let informe = analizar("https://secure-paypal-verificacion.com/");
+        assert!(codigos(&informe).contains(&"marca_falsa"));
     }
 
     #[test]
-    fn strips_www_and_trailing_dot() {
-        assert_eq!(normalize_host("WWW.Ejemplo.COM."), "ejemplo.com");
+    fn detecta_typosquatting_con_digito() {
+        let informe = analizar("http://paypa1.com/login/verify");
+        assert!(codigos(&informe).contains(&"typosquatting"));
+        assert_eq!(puntos_de(&informe, "typosquatting"), 3);
     }
 
     #[test]
-    fn detects_ipv6_literal() {
-        assert!(is_ip_literal("[::1]"));
-        assert!(is_ip_literal("192.168.0.1"));
-        assert!(!is_ip_literal("ejemplo.com"));
+    fn detecta_typosquatting_con_letra_de_mas() {
+        let informe = analizar("http://paypail.com/");
+        assert!(codigos(&informe).contains(&"typosquatting"));
     }
 
     #[test]
-    fn json_escapes_quotes() {
-        assert_eq!(json_string("a\"b\\c\nd"), r#""a\"b\\c\nd""#);
+    fn detecta_typosquatting_con_letra_de_menos() {
+        let informe = analizar("http://paypl.com/");
+        assert!(codigos(&informe).contains(&"typosquatting"));
     }
 
     #[test]
-    fn report_json_is_well_formed() {
-        let json = analyze("http://paypa1.com/login/verify").to_json();
+    fn detecta_typosquatting_con_letras_intercambiadas() {
+        let informe = analizar("http://paypla.com/");
+        assert!(codigos(&informe).contains(&"typosquatting"));
+    }
+
+    #[test]
+    fn detecta_typosquatting_con_homoglofos() {
+        let informe = analizar("http://vvhatsapp.com/");
+        assert!(codigos(&informe).contains(&"typosquatting"));
+    }
+
+    #[test]
+    fn la_marca_oficial_no_da_problemas() {
+        let informe = analizar("https://www.paypal.com/");
+        assert!(!codigos(&informe).contains(&"marca_falsa"));
+        assert!(!codigos(&informe).contains(&"typosquatting"));
+    }
+
+    #[test]
+    fn la_marca_dentro_de_un_sitio_oficial_no_da_problemas() {
+        let informe = analizar("https://www.bancounion.com.bo/");
+        assert!(!codigos(&informe).contains(&"marca_falsa"));
+        assert!(!codigos(&informe).contains(&"typosquatting"));
+    }
+
+    #[test]
+    fn los_bancos_bolivianos_estan_vigilados() {
+        for (nombre, _) in [("bcp.com.bo", "bcp"), ("bnb.com.bo", "bnb")] {
+            let informe = analizar(&format!("https://{nombre}/"));
+            assert!(
+                !codigos(&informe).contains(&"marca_falsa"),
+                "{nombre} no debería dar señal de marca falsa"
+            );
+        }
+        let informe = analizar("https://bcp-secure-verificacion.com.bo/");
+        assert!(codigos(&informe).contains(&"marca_falsa"));
+    }
+
+    // ------------------------------------------------------------- umbrales
+
+    #[test]
+    fn los_umbrales_son_5_mas_alto_y_3_a_4_medio() {
+        assert_eq!(Nivel::desde_puntos(0), Nivel::Bajo);
+        assert_eq!(Nivel::desde_puntos(2), Nivel::Bajo);
+        assert_eq!(Nivel::desde_puntos(3), Nivel::Medio);
+        assert_eq!(Nivel::desde_puntos(4), Nivel::Medio);
+        assert_eq!(Nivel::desde_puntos(5), Nivel::Alto);
+        assert_eq!(Nivel::desde_puntos(9), Nivel::Alto);
+    }
+
+    #[test]
+    fn el_puntaje_es_la_suma_de_las_senales() {
+        let informe = analizar("http://paypa1.com/login/verify");
+        let suma: u32 = informe.senales.iter().map(|senal| senal.puntos).sum();
+        assert_eq!(informe.puntos, suma);
+        assert_eq!(informe.nivel, Nivel::Alto);
+    }
+
+    // ------------------------------------------------------------- robustez
+
+    #[test]
+    fn una_entrada_vacia_no_entra_en_panico() {
+        let informe = analizar("");
+        assert_eq!(informe.nivel, Nivel::Bajo);
+        assert_eq!(informe.dominio, "");
+    }
+
+    #[test]
+    fn un_enlace_sin_dominio_no_entra_en_panico() {
+        for entrada in ["http://", "https://", "http://:80", "http://@", "http://@@"] {
+            let informe = analizar(entrada);
+            assert!(informe.dominio.is_empty(), "entrada: {entrada}");
+            assert!(informe.puntos <= 30, "entrada: {entrada}");
+        }
+    }
+
+    #[test]
+    fn una_entrada_muy_larga_no_entra_en_panico() {
+        let entrada = format!("http://{}.com/login", "a".repeat(50_000));
+        let informe = analizar(&entrada);
+        assert!(!informe.dominio.is_empty());
+    }
+
+    #[test]
+    fn caracteres_raros_no_entran_en_panico() {
+        for entrada in [
+            "http://exa mple.com/",
+            "http://[",
+            "http://[::1",
+            "http://%",
+            "http://%zz",
+            "http://xn--",
+            "ht!tp://x",
+            "://",
+            "http://a..b",
+            "http://..",
+            "http://.",
+        ] {
+            let informe = analizar(entrada);
+            assert!(informe.puntos <= 30, "entrada: {entrada}");
+        }
+    }
+
+    #[test]
+    fn un_solo_esquema_se_trata_como_http() {
+        let url = UrlAnalizada::parsear("ejemplo.com/hola");
+        assert_eq!(url.esquema, "http");
+        assert_eq!(url.dominio, "ejemplo.com");
+        assert_eq!(url.ruta, "/hola");
+    }
+
+    #[test]
+    fn las_mayusculas_no_engañan_al_analizador() {
+        let url = UrlAnalizada::parsear("HTTPS://WWW.Ejemplo.COM/LOGIN");
+        assert_eq!(url.esquema, "https");
+        assert_eq!(url.dominio, "ejemplo.com");
+        assert_eq!(url.ruta, "/LOGIN");
+    }
+
+    #[test]
+    fn el_puerto_no_forma_parte_del_dominio() {
+        let url = UrlAnalizada::parsear("http://paypa1.com:8080/login");
+        assert_eq!(url.dominio, "paypa1.com");
+        assert_eq!(url.puerto.as_deref(), Some("8080"));
+    }
+
+    #[test]
+    fn el_punto_final_del_dominio_se_quita() {
+        let url = UrlAnalizada::parsear("http://paypa1.com./login");
+        assert_eq!(url.dominio, "paypa1.com");
+    }
+
+    #[test]
+    fn las_barras_de_mas_no_esconden_el_dominio() {
+        let url = UrlAnalizada::parsear("http:///paypa1.com/login");
+        assert_eq!(url.dominio, "paypa1.com");
+        let informe = analizar("http:///paypa1.com/login");
+        assert_eq!(informe.nivel, Nivel::Alto);
+    }
+
+    #[test]
+    fn los_tabuladores_se_borran_como_en_el_navegador() {
+        let url = UrlAnalizada::parsear("http://exa\tmple.com/");
+        assert_eq!(url.dominio, "example.com");
+    }
+
+    #[test]
+    fn la_barra_invertida_ends_la_autoridad_como_en_el_navegador() {
+        let url = UrlAnalizada::parsear("http://evil.com\\@paypa1.com/");
+        assert_eq!(url.dominio, "evil.com");
+    }
+
+    #[test]
+    fn las_terminaciones_dobles_no_se_confunden() {
+        let url = UrlAnalizada::parsear("https://www.bancounion.com.bo/");
+        assert_eq!(url.dominio, "bancounion.com.bo");
+        assert_eq!(cantidad_etiquetas(&url.dominio), 3);
+    }
+
+    // ------------------------------------------------------------ auxiliares
+
+    #[test]
+    fn la_distancia_de_levenshtein_cuenta_las_letras() {
+        assert_eq!(distancia_levenshtein("paypal", "paypal"), 0);
+        assert_eq!(distancia_levenshtein("paypal", "paypa1"), 1);
+        assert_eq!(distancia_levenshtein("paypal", "paypai"), 1);
+        assert_eq!(distancia_levenshtein("paypal", "paypl"), 1);
+        assert_eq!(distancia_levenshtein("paypal", "paypla"), 1);
+        assert_eq!(distancia_levenshtein("paypal", "otro"), 6);
+    }
+
+    #[test]
+    fn los_homoglifos_se_normalizan() {
+        assert_eq!(normalizar_homoglifos("rnicrosoft"), "microsoft");
+        assert_eq!(normalizar_homoglifos("vvhatsapp"), "whatsapp");
+        assert_eq!(normalizar_homoglifos("micros0ft"), "microsoft");
+    }
+
+    #[test]
+    fn el_json_escapa_las_comillas() {
+        assert_eq!(cadena_json("a\"b\\c\nd"), r#""a\"b\\c\nd""#);
+    }
+
+    #[test]
+    fn el_json_del_informe_tiene_la_forma_esperada() {
+        let json = analizar("http://paypa1.com/login/verify").a_json();
         assert!(json.starts_with('{'));
         assert!(json.ends_with('}'));
-        assert!(json.contains("\"level\":\"high\""));
-        assert!(json.contains("\"code\":\"typosquat\""));
+        assert!(json.contains("\"nivel\":\"alto\""));
+        assert!(json.contains("\"codigo\":\"typosquatting\""));
     }
 
     #[test]
-    fn demo_cases_match_expected_verdicts() {
-        for case in DEMO_CASES {
-            let report = analyze(case.url);
+    fn los_casos_de_la_demo_cumplen_lo_prometido() {
+        for caso in CASOS_DEMO {
+            let informe = analizar(caso.url);
             assert_eq!(
-                report.level, case.expected,
+                informe.nivel, caso.esperado,
                 "veredicto inesperado para {}: {:?}",
-                case.url, report.reasons
+                caso.url, informe.senales
             );
         }
     }
