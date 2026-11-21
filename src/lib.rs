@@ -553,6 +553,75 @@ pub fn tiene_terminacion_sospechosa(dominio: &str) -> bool {
         .any(|terminacion| dominio.ends_with(terminacion))
 }
 
+/// Explicación de cada señal en palabras llanas: qué significa y qué hacer.
+///
+/// Se usa con `--explain` en la terminal y se puede reutilizar en la página web.
+pub const EXPLICACIONES: &[(&str, &str, &str)] = &[
+    (
+        "sin_https",
+        "El enlace no usa HTTPS. Sin el candado, quien esté en la red puede leer lo que escribes.",
+        "No escribas contraseñas ni datos de tarjeta en una página sin candado.",
+    ),
+    (
+        "ip_dominio",
+        "En vez de un nombre de dominio hay una dirección IP. Los sitios de verdad usan nombres.",
+        "Mira de quién es esa IP antes de entrar: es un patrón clásico de phishing.",
+    ),
+    (
+        "usuario_oculto",
+        "El «@» separa un usuario del dominio: lo de antes es una mentira y lo de después es el destino real.",
+        "Mira siempre lo que va después del último «@»: ese es el dominio de verdad.",
+    ),
+    (
+        "subdominios",
+        "El dominio tiene cuatro o más etiquetas, así que el nombre real está al final de la cadena.",
+        "Lee el dominio de derecha a izquierda, separando por puntos: lo de la derecha es lo que cuenta.",
+    ),
+    (
+        "letras_camufladas",
+        "El dominio usa letras que se parecen a las verdaderas, o su forma codificada (el punycode).",
+        "Un sitio de verdad no usa letras raras ni cadenas extrañas en su dirección.",
+    ),
+    (
+        "acortador",
+        "El enlace está acortado: el destino real está escondido a propósito.",
+        "Pasa el cursor por encima o usa un expansor para ver a dónde lleva antes de abrirlo.",
+    ),
+    (
+        "terminacion_rara",
+        "La terminación del dominio es de las baratas, y los estafadores las compran porque cuestan poco.",
+        "Un banco de verdad no usa terminaciones raras.",
+    ),
+    (
+        "guiones",
+        "El dominio encadena palabras con guiones: es la forma de imitar un nombre y llenarlo de extras.",
+        "Desconfía de los dominios con muchas palabras pegadas.",
+    ),
+    (
+        "palabra_gancho",
+        "El enlace trae palabras que buscan la confianza: login, clave, verificar, urgente.",
+        "Esas palabras están para que actúes por impulso. Léelo con calma antes de hacer clic.",
+    ),
+    (
+        "marca_falsa",
+        "El dominio usa el nombre de una marca conocida, pero no es el sitio oficial de esa marca.",
+        "Un banco nunca manda a un dominio con otro nombre. Escribe tú la dirección oficial.",
+    ),
+    (
+        "typosquatting",
+        "El dominio imita a una marca con una diferencia mínima: una letra de más, de menos o cambiada.",
+        "Si dudas, no abras el enlace: escribe tú la dirección del sitio en el navegador.",
+    ),
+];
+
+/// Devuelve la explicación de una señal: qué significa y qué hacer.
+pub fn explicacion(codigo: &str) -> Option<(&'static str, &'static str)> {
+    EXPLICACIONES
+        .iter()
+        .find(|explicacion| explicacion.0 == codigo)
+        .map(|explicacion| (explicacion.1, explicacion.2))
+}
+
 /// Primera palabra de gancho encontrada (el texto llega en minúsculas).
 pub fn primera_palabra_gancho(texto: &str) -> Option<&'static str> {
     PALABRAS_GANCHO
@@ -1058,6 +1127,64 @@ mod pruebas {
         assert_eq!(normalizar_homoglifos("rnicrosoft"), "microsoft");
         assert_eq!(normalizar_homoglifos("vvhatsapp"), "whatsapp");
         assert_eq!(normalizar_homoglifos("micros0ft"), "microsoft");
+    }
+
+    #[test]
+    fn el_json_escapa_las_comillas_y_los_saltos_de_linea() {
+        assert_eq!(cadena_json("a\"b\\c\nd\te\r"), r#""a\"b\\c\nd\te\r""#);
+    }
+
+    #[test]
+    fn el_json_escapa_los_caracteres_de_control() {
+        // Un carácter de control no puede ir suelto dentro de un JSON.
+        assert_eq!(cadena_json("\u{1}"), r#""\u0001""#);
+        assert_eq!(cadena_json("\u{1f}"), r#""\u001f""#);
+    }
+
+    #[test]
+    fn el_json_conserva_el_unicode_y_los_emoji() {
+        // Las letras no latinas y los emoji se dejan tal cual: el JSON los admite en UTF-8.
+        assert_eq!(
+            cadena_json("paypa\u{0430}l.com/\u{1f600}"),
+            "\"paypa\u{0430}l.com/\u{1f600}\""
+        );
+    }
+
+    #[test]
+    fn el_json_del_informe_aguanta_un_enlace_con_emoji_y_comillas() {
+        let informe = analizar("https://ejemplo.com/\u{1f600}?a=\"b\"&c=\\");
+        let json = informe.a_json();
+        assert!(
+            json.contains("\\\"b\\\""),
+            "las comillas deben ir escapadas"
+        );
+        assert!(json.contains("\u{1f600}"), "el emoji debe quedar tal cual");
+        // Cada llave del informe va entre comillas y el objeto cierra bien.
+        assert!(json.starts_with('{') && json.ends_with('}'));
+        assert_eq!(json.matches("\"codigo\"").count(), informe.senales.len());
+    }
+
+    #[test]
+    fn el_json_escapa_las_barras_invertidas() {
+        // Una barra invertida en el dominio es el truco de «evil.com\@paypa1.com».
+        let informe = analizar("http://evil.com\\@paypa1.com/");
+        let json = informe.a_json();
+        assert!(json.contains("\\\\"), "la barra invertida debe ir escapada");
+    }
+
+    #[test]
+    fn cada_senal_tiene_su_explicacion() {
+        // Si mañana se agrega una señal sin explicación, esta prueba se entera.
+        for caso in CASOS_DEMO {
+            for senal in &analizar(caso.url).senales {
+                assert!(
+                    explicacion(senal.codigo).is_some(),
+                    "falta la explicación de {}",
+                    senal.codigo
+                );
+            }
+        }
+        assert_eq!(EXPLICACIONES.len(), 11, "deben ser las once señales");
     }
 
     #[test]

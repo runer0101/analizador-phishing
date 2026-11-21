@@ -64,6 +64,9 @@ target/release/phishing-analyzer --json "https://www.google.com"
 
 # sin color, para tuberías o para un proyector con poco contraste
 target/release/phishing-analyzer --no-color "http://paypa1.com/login"
+
+# explica cada señal en palabras llanas: qué significa y qué hacer
+target/release/phishing-analyzer --explain "http://paypa1.com/login/verify"
 ```
 
 ## Las once señales
@@ -136,6 +139,12 @@ Y la salida en JSON:
 }
 ```
 
+### Explicar cada señal
+
+Con `--explain`, el programa dice en palabras llanas qué significa cada señal y qué hacer
+ante ella. Las once explicaciones están en `EXPLICACIONES` (`src/lib.rs`) y las usa también
+la página web.
+
 ## Limitaciones
 
 El analizador mira **solo la dirección**, sin abrir el enlace. Eso tiene un precio:
@@ -184,17 +193,22 @@ analizador-phishing/
 │   ├── DIAPOSITIVAS.md   # diapositivas 1 a 5
 │   ├── ENSAYO.md         # ensayo sin internet y plan B
 │   └── captura-demo.png  # captura real de la demo en el navegador
-├── scripts/demo.sh   # la demostración del analizador en un comando
+├── scripts/
+│   ├── demo.sh          # la demostración del analizador en un comando
+│   └── estres-wasm.mjs  # test de fuga de memoria del módulo WebAssembly
 └── odd/tasks/        # especificación de la actividad
 ```
 
 ## Verificación
 
 ```bash
-cargo test                                              # 59 pruebas
+cargo test                                              # 65 pruebas
 cargo clippy --all-targets -- -D warnings
 cargo fmt -- --check
 cargo build --lib --release --target wasm32-unknown-unknown   # el motor de la web
+
+# test de fuga de memoria del módulo WebAssembly: 1000 análisis seguidos
+node scripts/estres-wasm.mjs
 ```
 
 Las pruebas cubren cada señal por separado, los umbrales, el formato del JSON, los casos

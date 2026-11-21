@@ -1,6 +1,6 @@
 //! Línea de órdenes del analizador de phishing.
 
-use phishing_analyzer::{analizar, Informe, Nivel, CASOS_DEMO};
+use phishing_analyzer::{analizar, explicacion, Informe, Nivel, CASOS_DEMO, EXPLICACIONES};
 use std::env;
 use std::fs;
 use std::io::{self, IsTerminal, Write};
@@ -17,6 +17,7 @@ Opciones:
   --json        Imprime un arreglo JSON con un objeto por enlace
   --file RUTA   Lee los enlaces de un archivo (uno por línea; «#» inicia comentario)
   --demo        Analiza los casos de la demostración
+  --explain     Explica cada señal detectada en palabras llanas
   --no-color    Desactiva el color ANSI
   -h, --help    Muestra esta ayuda
 
@@ -29,6 +30,7 @@ struct Opciones {
     archivo: Option<PathBuf>,
     json: bool,
     demo: bool,
+    explicar: bool,
     color: bool,
     ayuda: bool,
 }
@@ -85,6 +87,9 @@ fn ejecutar(argumentos: &[String]) -> Result<ExitCode, String> {
             writeln!(salida).map_err(|e| e.to_string())?;
         }
         mostrar_informe(&mut salida, informe, color).map_err(|e| e.to_string())?;
+        if opciones.explicar {
+            mostrar_explicaciones(&mut salida, informe, color).map_err(|e| e.to_string())?;
+        }
     }
 
     if modo_demo {
@@ -92,6 +97,10 @@ fn ejecutar(argumentos: &[String]) -> Result<ExitCode, String> {
         mostrar_tabla(&mut salida, &informes, color).map_err(|e| e.to_string())?;
         writeln!(salida).map_err(|e| e.to_string())?;
         mostrar_notas(&mut salida).map_err(|e| e.to_string())?;
+        if opciones.explicar {
+            writeln!(salida).map_err(|e| e.to_string())?;
+            mostrar_todas_las_explicaciones(&mut salida).map_err(|e| e.to_string())?;
+        }
     }
 
     Ok(ExitCode::SUCCESS)
@@ -103,6 +112,7 @@ fn leer_opciones(argumentos: &[String]) -> Result<Opciones, String> {
         archivo: None,
         json: false,
         demo: false,
+        explicar: false,
         color: true,
         ayuda: false,
     };
@@ -112,6 +122,7 @@ fn leer_opciones(argumentos: &[String]) -> Result<Opciones, String> {
         match argumento.as_str() {
             "--json" => opciones.json = true,
             "--demo" => opciones.demo = true,
+            "--explain" => opciones.explicar = true,
             "--no-color" => opciones.color = false,
             "--file" => {
                 let ruta = iterador
@@ -230,6 +241,38 @@ fn mostrar_tabla(salida: &mut impl Write, informes: &[Informe], color: bool) -> 
             codigos.join(", "),
             ancho_url = ancho_url
         )?;
+    }
+    Ok(())
+}
+
+/// Explica en palabras llanas las señales que se detectaron en un enlace.
+fn mostrar_explicaciones(
+    salida: &mut impl Write,
+    informe: &Informe,
+    color: bool,
+) -> io::Result<()> {
+    for senal in &informe.senales {
+        let Some((significado, consejo)) = explicacion(senal.codigo) else {
+            continue;
+        };
+        writeln!(
+            salida,
+            "      {}",
+            pintar(color, "\x1b[36m", "Qué significa:")
+        )?;
+        writeln!(salida, "        {significado}")?;
+        writeln!(salida, "      {}", pintar(color, "\x1b[36m", "Qué hacer:"))?;
+        writeln!(salida, "        {consejo}")?;
+    }
+    Ok(())
+}
+
+/// Lista completa de las once señales con su explicación.
+fn mostrar_todas_las_explicaciones(salida: &mut impl Write) -> io::Result<()> {
+    writeln!(salida, "Qué significa cada señal:")?;
+    for (codigo, significado, consejo) in EXPLICACIONES {
+        writeln!(salida, "  • {codigo}: {significado}")?;
+        writeln!(salida, "      → {consejo}")?;
     }
     Ok(())
 }
