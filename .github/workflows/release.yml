@@ -71,7 +71,7 @@ jobs:
           cp "$binario" "dist/${{ matrix.nombre }}"
           ls -la dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.nombre }}
           path: dist/${{ matrix.nombre }}
@@ -80,7 +80,9 @@ jobs:
     needs: binarios
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true
@@ -97,6 +99,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
             --title "Analizador de phishing ${GITHUB_REF_NAME}" \
             --notes "Binarios del analizador de phishing: análisis estático de enlaces, sin visitarlos. \
           Verifique las descargas con el archivo \`phishing-analyzer-SHA256SUMS.txt\`."
