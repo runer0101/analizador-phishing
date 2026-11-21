@@ -1,6 +1,7 @@
 # Diapositivas — Analizador de phishing (1 a 5)
 
-Cinco diapositivas para los primeros 5:30 de la exposición. Lo que se dice está en
+Cinco diapositivas para el bloque 0–4 minutos y para la demo en vivo (4–7). Lo que se
+dice está en
 [`GUION.md`](GUION.md); las diapositivas 6 a 10 (honeypot, defensa y cierre) están en el
 repositorio `honeypot-casero`.
 
@@ -28,7 +29,8 @@ repositorio `honeypot-casero`.
 - Lee el enlace **como texto**: no lo visita, no pide DNS, no sale a internet
 - Once reglas, cada una con un puntaje
 - 5+ puntos → **ALTO** · 3-4 → **MEDIO** · 0-2 → **BAJO**
-- **Demo en vivo:** https://runer0101.github.io/analizador-phishing/
+- **Demo en vivo:** en la terminal (`phishing-analyzer --demo`) y en el navegador
+  (<https://runer0101.github.io/analizador-phishing/>)
 
 ```
 🔴 ALTO — 5 pts, 3 señales

@@ -20,9 +20,11 @@ DNS, no abre conexiones, no sale a internet.
 > **Descargas:** [release v0.2.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.2.0)
 > con binarios para Linux, macOS y Windows, y sus sumas SHA-256.
 
-El proyecto hermano es [`honeypot-casero`](../honeypot-casero): una trampa que registra
-lo que hace un atacante cuando entra, con su demo en vivo en
-<https://runer0101.github.io/analizador-phishing/>.
+El proyecto hermano es [`honeypot-casero`](../honeypot-casero): una **trampa de baja
+interacción** que corre en la terminal, solo en `127.0.0.1`, y registra en JSONL todo lo que
+hace el atacante cuando entra: credenciales, órdenes, descargas y clics. **No tiene demo en
+la web**: una trampa necesita sockets reales y el navegador no los tiene. Se demuestra en
+vivo desde un laboratorio local, con `scripts/demo.sh`.
 
 ## Instalación
 
@@ -190,8 +192,10 @@ analizador-phishing/
 │   ├── pages.yml     # publica la demo en GitHub Pages
 │   └── release.yml   # binarios de Linux, macOS y Windows en cada tag
 ├── docs/
-│   ├── PRESENTACION.md   # el guion completo de los 12 minutos
-│   ├── GUION.md          # la parte del analizador
+│   ├── PRESENTACION.md   # índice de la exposición de 12 minutos
+│   ├── GUION.md          # el guion minuto a minuto
+│   ├── DEMO.md           # plan de demo en vivo y plan B
+│   ├── Q-A.md            # preguntas del jurado y respuestas
 │   ├── DIAPOSITIVAS.md   # diapositivas 1 a 5
 │   ├── ENSAYO.md         # ensayo sin internet y plan B
 │   ├── CHECKLIST-EXPOSICION.md # los diez puntos del día de la exposición
