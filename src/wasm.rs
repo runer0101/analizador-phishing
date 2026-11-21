@@ -41,14 +41,25 @@ pub unsafe extern "C" fn wasm_liberar_memoria(puntero: *mut u8, tamano: usize) {
     drop(Vec::from_raw_parts(puntero, 0, tamano));
 }
 
+/// Veredicto que se devuelve cuando el texto recibido no es UTF-8 válido.
+///
+/// Lleva la misma forma que el informe normal, con una clave `error` extra: la página
+/// la lee y la muestra como aviso.
+const ERROR_UTF8: &str = r#"{"url":"","dominio":"","nivel":"","puntos":0,"senales":[],"error":"El enlace recibido no es texto UTF-8 válido"}"#;
+
 /// Analiza el texto UTF-8 que está en `puntero` y devuelve la dirección del JSON.
 ///
+/// El texto se valida antes de usarlo: `from_utf8_unchecked` con una entrada inválida
+/// sería comportamiento indefinido, y aquí la entrada viene de JavaScript.
+///
 /// # Seguridad
-/// `puntero` debe apuntar a `tamano` bytes legibles de UTF-8 válido.
+/// `puntero` debe apuntar a `tamano` bytes legibles.
 #[no_mangle]
 pub unsafe extern "C" fn wasm_analizar(puntero: *const u8, tamano: usize) -> *const u8 {
-    let texto = std::str::from_utf8_unchecked(std::slice::from_raw_parts(puntero, tamano));
-    let json = analizar(texto).a_json().into_bytes();
+    let json = match std::str::from_utf8(std::slice::from_raw_parts(puntero, tamano)) {
+        Ok(texto) => analizar(texto).a_json().into_bytes(),
+        Err(_) => ERROR_UTF8.as_bytes().to_vec(),
+    };
     ULTIMO_TAMANO.store(json.len(), Ordering::Relaxed);
     let caja: Box<[u8]> = json.into_boxed_slice();
     Box::into_raw(caja) as *mut u8

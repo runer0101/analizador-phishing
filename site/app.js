@@ -67,7 +67,12 @@ function analizarEnlace(url) {
   modulo.wasm_liberar_resultado(veredicto, largo);
   modulo.wasm_liberar_memoria(puntero, bytes.length);
 
-  return JSON.parse(json);
+  const datos = JSON.parse(json);
+  // El motor devuelve un aviso (no un veredicto) cuando el texto no es UTF-8 válido.
+  if (datos.error) {
+    throw new Error(datos.error);
+  }
+  return datos;
 }
 
 function crear(nodo, texto, clase) {
