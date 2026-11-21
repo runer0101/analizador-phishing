@@ -8,7 +8,8 @@ Herramienta de seguridad para analizar enlaces sospechosos: **lee el enlace como
 devuelve un veredicto de riesgo con el motivo de cada señal. **Nunca visita la URL**: no pide
 DNS, no abre conexiones, no sale a internet.
 
-- Rust, **cero dependencias externas** (solo la biblioteca estándar)
+- Rust, **cero dependencias externas**: solo la biblioteca estándar, sin dependencias
+  que instalar ni que mantener al día
 - Once señales con puntaje, veredicto en tres niveles
 - Salida para terminal (con color) y salida JSON para máquinas
 - La misma herramienta corre en el navegador con WebAssembly

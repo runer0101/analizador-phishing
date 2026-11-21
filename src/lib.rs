@@ -1123,6 +1123,67 @@ mod pruebas {
         assert_eq!(EXPLICACIONES.len(), 11, "deben ser las once señales");
     }
 
+    /// Una URL por señal: cada regla tiene que poder dispararse alguna vez.
+    const CASOS_COBERTURA: [(&str, &str); 11] = [
+        ("http://ejemplo.com/x", "sin_https"),
+        ("http://192.168.56.101/x", "ip_dominio"),
+        ("http://usuario@ejemplo.com/", "usuario_oculto"),
+        ("https://a.b.c.ejemplo.com/", "subdominios"),
+        ("https://xn--e1awd7f.com/", "letras_camufladas"),
+        ("https://bit.ly/abc", "acortador"),
+        ("https://sitio.xyz/", "terminacion_rara"),
+        ("https://mi-sitio-seguro-verificar.com/", "guiones"),
+        ("https://ejemplo.com/login/verify", "palabra_gancho"),
+        (
+            "http://paypal.secure-verify-login.com/account",
+            "marca_falsa",
+        ),
+        ("http://paypa1.com/login/verify", "typosquatting"),
+    ];
+
+    #[test]
+    fn cada_regla_se_puede_disparar_y_tiene_explicacion() {
+        let mut emitidos: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+
+        for (url, esperado) in CASOS_COBERTURA {
+            let senales = analizar(url).senales;
+            assert!(
+                senales.iter().any(|senal| senal.codigo == esperado),
+                "la señal {esperado} no se disparó con {url}"
+            );
+            for senal in &senales {
+                assert!(
+                    explicacion(senal.codigo).is_some(),
+                    "falta la explicación de {}",
+                    senal.codigo
+                );
+                emitidos.insert(senal.codigo);
+            }
+        }
+
+        // Las señales que el analizador puede emitir son exactamente las declaradas.
+        let declarados: std::collections::BTreeSet<&str> = EXPLICACIONES
+            .iter()
+            .map(|explicacion| explicacion.0)
+            .collect();
+        assert_eq!(
+            emitidos, declarados,
+            "las explicaciones no coinciden con las señales del analizador"
+        );
+
+        // Ninguna explicación puede estar vacía.
+        for (codigo, titulo, detalle) in EXPLICACIONES {
+            assert!(
+                !titulo.trim().is_empty(),
+                "explicación sin título: {codigo}"
+            );
+            assert!(
+                !detalle.trim().is_empty(),
+                "explicación sin detalle: {codigo}"
+            );
+        }
+    }
+
     #[test]
     fn el_json_escapa_las_comillas() {
         assert_eq!(cadena_json("a\"b\\c\nd"), r#""a\"b\\c\nd""#);
