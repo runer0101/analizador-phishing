@@ -11,7 +11,7 @@ repositorio `honeypot-casero`.
 **Phishing y honeypot: dos herramientas propias para ver el ataque y la defensa**
 
 - Rust, sin dependencias externas, sin internet
-- Actividad de ciberseguridad — 5 de diciembre de 2026
+- Herramientas propias de ciberseguridad, escritas en Rust
 
 ---
 

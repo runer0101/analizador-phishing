@@ -4,9 +4,9 @@
 [![Demo en vivo](https://img.shields.io/badge/demo%20en%20vivo-1f4fd8?style=flat-square)](https://runer0101.github.io/analizador-phishing/)
 [![Licencia](https://img.shields.io/badge/licencia-MIT-1e7a45?style=flat-square)](LICENSE)
 
-Herramienta propia de la actividad de ciberseguridad del 5 de diciembre: **lee un enlace
-como texto** y devuelve un veredicto de riesgo con el motivo de cada señal. **Nunca visita
-la URL**: no pide DNS, no abre conexiones, no sale a internet.
+Herramienta de seguridad para analizar enlaces sospechosos: **lee el enlace como texto** y
+devuelve un veredicto de riesgo con el motivo de cada señal. **Nunca visita la URL**: no pide
+DNS, no abre conexiones, no sale a internet.
 
 - Rust, **cero dependencias externas** (solo la biblioteca estándar)
 - Once señales con puntaje, veredicto en tres niveles
@@ -19,9 +19,8 @@ la URL**: no pide DNS, no abre conexiones, no sale a internet.
 > **Descargas:** [release v0.1.0](https://github.com/runer0101/analizador-phishing/releases/tag/v0.1.0)
 > con binarios para Linux, macOS y Windows, y sus sumas SHA-256.
 
-La otra mitad de la actividad es el repositorio hermano
-[`honeypot-casero`](../honeypot-casero): una trampa que registra lo que hace un atacante
-cuando entra, con su demo en vivo en
+El proyecto hermano es [`honeypot-casero`](../honeypot-casero): una trampa que registra
+lo que hace un atacante cuando entra, con su demo en vivo en
 <https://runer0101.github.io/analizador-phishing/>.
 
 ## Instalación
@@ -194,12 +193,11 @@ analizador-phishing/
 │   ├── GUION.md          # la parte del analizador
 │   ├── DIAPOSITIVAS.md   # diapositivas 1 a 5
 │   ├── ENSAYO.md         # ensayo sin internet y plan B
-│   ├── CHECKLIST-DIA-5.md # los diez puntos para el día del evento
+│   ├── CHECKLIST-EXPOSICION.md # los diez puntos del día de la exposición
 │   └── captura-demo.png  # captura real de la demo en el navegador
-├── scripts/
-│   ├── demo.sh          # la demostración del analizador en un comando
-│   └── estres-wasm.mjs  # test de fuga de memoria del módulo WebAssembly
-└── odd/tasks/        # especificación de la actividad
+└── scripts/
+    ├── demo.sh          # la demostración del analizador en un comando
+    └── estres-wasm.mjs  # test de fuga de memoria del módulo WebAssembly
 ```
 
 ### Las listas en texto plano

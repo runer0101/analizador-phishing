@@ -1,4 +1,4 @@
-# Guion — Analizador de phishing (parte 1 de la actividad)
+# Guion — Analizador de phishing (parte 1)
 
 Tiempo: **0:00 a 5:30** de los 12 minutos de la exposición. La segunda mitad (el honeypot)
 está en el repositorio `honeypot-casero`, y el guion completo de las dos partes está en

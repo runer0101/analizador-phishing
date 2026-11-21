@@ -1,7 +1,7 @@
 # Guía de ensayo — Analizador de phishing
 
-Objetivo: llegar al 5 de diciembre able to demonstrate the activity **sin depender de
-internet** y con un video de respaldo por si la sala falla.
+Objetivo: poder hacer la demostración **sin depender de internet** y con un video de
+respaldo por si la sala falla.
 
 ## 1. Qué se necesita el día de la exposición
 
@@ -75,5 +75,5 @@ Grabe **la salida real**: la tabla de veredictos y el veredicto suelto. Dos minu
 ## 6. Aviso para la exposición
 
 El analizador **no abre ninguna conexión**: trabaja sobre el texto del enlace que se le
-entrega. Es la primera de las dos herramientas de la actividad; la segunda es el honeypot
-casero del repositorio `honeypot-casero`.
+entrega. Es la primera de las dos herramientas; la segunda es el honeypot casero del
+repositorio `honeypot-casero`.
