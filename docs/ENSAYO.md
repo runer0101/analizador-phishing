@@ -33,7 +33,7 @@ ejecute:
 scripts/demo.sh
 ```
 
-Eso muestra los cinco casos de la demostración, un veredicto suelto y la salida JSON.
+Eso muestra los seis casos de la demostración, un veredicto suelto y la salida JSON.
 
 Si quiere comprobar de verdad que no hay red, puede ensayar en un espacio de nombres
 aislado:

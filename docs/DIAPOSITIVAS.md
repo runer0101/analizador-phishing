@@ -62,7 +62,9 @@ repositorio `honeypot-casero`.
 
 ## 5 · Lo que el analizador NO puede hacer
 
-- **Falsos positivos**: un sitio real con `verificacion` en la ruta suma un punto
+- **Falsos positivos**: un sitio real con una palabra de gancho en la ruta suma un punto
+  (las marcas y las palabras tienen que ser **palabras completas**: `airbnb.com` y
+  `bancounion.com.bo` salen limpios)
 - **Falsos negativos**: un phishing con dominio limpio puede salir en verde
 - **Solo mira la dirección**: no ve la página
 
